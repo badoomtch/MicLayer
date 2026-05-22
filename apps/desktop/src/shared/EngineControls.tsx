@@ -20,11 +20,8 @@ export function EngineControls() {
     setBusy(true);
     setLastErrorId(null);
     try {
-      if (running) {
-        await engineStop();
-      } else {
-        await engineStart();
-      }
+      if (running) await engineStop();
+      else await engineStart();
     } catch (e) {
       console.error('engine start/stop failed', e);
     } finally {
@@ -33,27 +30,21 @@ export function EngineControls() {
   };
 
   return (
-    <div className="flex items-center gap-3">
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <button
         type="button"
         disabled={disabled}
         onClick={onClick}
-        className={
-          'inline-flex items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition-colors ' +
-          (running
-            ? 'bg-meterHigh/15 text-meterHigh hover:bg-meterHigh/25'
-            : 'bg-accent/15 text-fg hover:bg-accent/25') +
-          (disabled ? ' opacity-50 cursor-not-allowed' : '')
-        }
+        className={'ml-btn' + (running ? '' : ' primary')}
       >
-        {running ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+        {running ? <Square size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
         {running ? 'Stop engine' : 'Start engine'}
       </button>
       {!selectedDeviceId && (
-        <span className="text-xs text-muted">Pick a microphone first.</span>
+        <span style={{ fontSize: 11.5, color: 'var(--ml-fg-muted)' }}>Pick a microphone first.</span>
       )}
       {lastErrorId && (
-        <span className="text-xs text-meterHigh">Error: {lastErrorId}</span>
+        <span style={{ fontSize: 11.5, color: 'var(--ml-bad)' }}>Error: {lastErrorId}</span>
       )}
     </div>
   );

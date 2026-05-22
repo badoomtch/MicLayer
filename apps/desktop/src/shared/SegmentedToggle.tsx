@@ -17,13 +17,7 @@ export function SegmentedToggle<T extends string>({
   disabled,
 }: SegmentedToggleProps<T>) {
   return (
-    <div
-      role="radiogroup"
-      className={
-        'inline-flex rounded-pill border border-muted/30 p-0.5 ' +
-        (disabled ? 'opacity-50' : '')
-      }
-    >
+    <div className="ml-seg" role="radiogroup" aria-disabled={disabled}>
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -34,10 +28,7 @@ export function SegmentedToggle<T extends string>({
             aria-checked={active}
             disabled={disabled}
             onClick={() => onChange(o.value)}
-            className={
-              'rounded-pill px-3 py-1 text-xs transition-colors ' +
-              (active ? 'bg-accent/20 text-fg' : 'text-muted hover:text-fg')
-            }
+            className={'ml-seg-opt' + (active ? ' active' : '')}
           >
             {o.label}
           </button>

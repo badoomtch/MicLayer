@@ -1,37 +1,49 @@
 import { type ReactNode } from 'react';
+import { Toggle } from './Toggle';
 
 interface ModuleCardProps {
   title: string;
   enabled: boolean;
   onToggle: (v: boolean) => void;
   subtitle?: string;
+  /** Optional right-aligned actions in the header. */
+  trailing?: ReactNode;
   children: ReactNode;
 }
 
-export function ModuleCard({ title, enabled, onToggle, subtitle, children }: ModuleCardProps) {
+export function ModuleCard({
+  title,
+  enabled,
+  onToggle,
+  subtitle,
+  trailing,
+  children,
+}: ModuleCardProps) {
   return (
-    <section
-      className={
-        'rounded-card border border-surface/60 bg-surface p-4 transition-opacity ' +
-        (enabled ? '' : 'opacity-60')
-      }
-    >
-      <header className="mb-3 flex items-start justify-between gap-4">
-        <div>
-          <h3 className="text-sm font-semibold">{title}</h3>
-          {subtitle && <p className="text-xs text-muted">{subtitle}</p>}
+    <section className="ml-card ml-card-pad" style={{ opacity: enabled ? 1 : 0.65 }}>
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          marginBottom: 14,
+          gap: 16,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
+          {subtitle && (
+            <div style={{ fontSize: 11.5, color: 'var(--ml-fg-muted)', marginTop: 2 }}>
+              {subtitle}
+            </div>
+          )}
         </div>
-        <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(e) => onToggle(e.target.checked)}
-            className="accent-accent"
-          />
-          <span>{enabled ? 'enabled' : 'disabled'}</span>
-        </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {trailing}
+          <Toggle checked={enabled} onChange={onToggle} aria-label={`${title} on/off`} />
+        </div>
       </header>
-      <div className={enabled ? '' : 'pointer-events-none'}>{children}</div>
+      <div style={{ pointerEvents: enabled ? 'auto' : 'none' }}>{children}</div>
     </section>
   );
 }

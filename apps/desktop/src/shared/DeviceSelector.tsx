@@ -1,19 +1,35 @@
+import { useState } from 'react';
+import { ChevronDown, Mic, RefreshCw, Star } from 'lucide-react';
+
 import { useAppStore } from '../state/useAppStore';
 import { engineSelectInput, engineListDevices } from '../ipc/commands';
-import { RefreshCw } from 'lucide-react';
 
 export function DeviceSelector() {
-  const { devices, selectedDeviceId, setSelectedDeviceId, setDevices } = useAppStore(
-    (s) => ({
-      devices: s.devices,
-      selectedDeviceId: s.engine.selectedDeviceId,
-      setSelectedDeviceId: s.setSelectedDeviceId,
-      setDevices: s.setDevices,
-    }),
-  );
+  const { devices, selectedDeviceId, setSelectedDeviceId, setDevices } = useAppStore((s) => ({
+    devices: s.devices,
+    selectedDeviceId: s.engine.selectedDeviceId,
+    setSelectedDeviceId: s.setSelectedDeviceId,
+    setDevices: s.setDevices,
+  }));
+  const [open, setOpen] = useState(false);
 
-  const onSelect = async (id: string) => {
+  const selected =
+    devices.find((d) => d.id === selectedDeviceId) ?? devices.find((d) => d.is_default_communications);
+  const sub = selected
+    ? `${selected.default_sample_rate_hz ?? 48000} Hz · ${selected.default_channels ?? 1} ch · WASAPI shared`
+    : 'No mic chosen';
+
+  const refresh = async () => {
+    try {
+      setDevices(await engineListDevices());
+    } catch (e) {
+      console.error('engine_list_devices failed', e);
+    }
+  };
+
+  const pick = async (id: string) => {
     setSelectedDeviceId(id);
+    setOpen(false);
     try {
       await engineSelectInput(id);
     } catch (e) {
@@ -21,42 +37,118 @@ export function DeviceSelector() {
     }
   };
 
-  const refresh = async () => {
-    try {
-      const list = await engineListDevices();
-      setDevices(list);
-    } catch (e) {
-      console.error('engine_list_devices failed', e);
-    }
-  };
-
   return (
-    <div className="flex items-center gap-2">
-      <select
-        value={selectedDeviceId ?? ''}
-        onChange={(e) => onSelect(e.target.value)}
-        className="min-w-[260px] flex-1 rounded-card border border-muted/20 bg-bg px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none"
-        aria-label="Input microphone"
-      >
-        <option value="" disabled>
-          {devices.length === 0 ? 'No microphones detected' : 'Pick a microphone…'}
-        </option>
-        {devices.map((d) => (
-          <option key={d.id} value={d.id}>
-            {d.is_default_communications ? '★ ' : ''}
-            {d.name}
-          </option>
-        ))}
-      </select>
+    <div style={{ position: 'relative', width: '100%' }}>
       <button
         type="button"
-        onClick={refresh}
-        className="rounded-pill border border-muted/30 px-2.5 py-2 text-xs text-muted hover:border-accent/60 hover:text-fg"
-        aria-label="Refresh device list"
-        title="Refresh device list"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          background: 'var(--ml-surface)',
+          border: '1px solid var(--ml-border)',
+          borderRadius: 'var(--ml-r-md)',
+          padding: '10px 12px',
+          color: 'var(--ml-fg)',
+          cursor: 'pointer',
+          textAlign: 'left',
+          font: 'inherit',
+        }}
       >
-        <RefreshCw className="h-3.5 w-3.5" />
+        <span
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 6,
+            background: 'var(--ml-accent-soft)',
+            color: 'var(--ml-accent)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flex: '0 0 28px',
+          }}
+        >
+          <Mic size={14} />
+        </span>
+        <span style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span
+              style={{
+                fontWeight: 500,
+                fontSize: 13,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {selected?.name ?? 'No microphone selected'}
+            </span>
+            {selected?.is_default_communications && (
+              <Star size={11} style={{ color: 'var(--ml-fg-faint)' }} />
+            )}
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--ml-fg-muted)' }}>{sub}</span>
+        </span>
+        <ChevronDown size={14} style={{ color: 'var(--ml-fg-muted)', flex: '0 0 14px' }} />
       </button>
+
+      {open && (
+        <div
+          className="ml-card"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            left: 0,
+            right: 0,
+            zIndex: 30,
+            boxShadow: 'var(--ml-shadow-2)',
+            padding: 4,
+          }}
+        >
+          {devices.length === 0 ? (
+            <div style={{ padding: '10px 12px', color: 'var(--ml-fg-muted)', fontSize: 12 }}>
+              No microphones detected.
+            </div>
+          ) : (
+            devices.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => pick(d.id)}
+                style={{
+                  display: 'flex',
+                  width: '100%',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 10px',
+                  background: d.id === selected?.id ? 'var(--ml-accent-soft)' : 'transparent',
+                  border: 0,
+                  borderRadius: 'var(--ml-r-sm)',
+                  font: 'inherit',
+                  color: 'var(--ml-fg)',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <Mic size={12} style={{ color: 'var(--ml-fg-muted)' }} />
+                <span style={{ flex: 1, fontSize: 12.5, fontWeight: 500 }}>{d.name}</span>
+                {d.is_default_communications && <Star size={11} style={{ color: 'var(--ml-fg-faint)' }} />}
+              </button>
+            ))
+          )}
+          <div className="ml-divider" style={{ margin: '4px 0' }} />
+          <button
+            type="button"
+            onClick={refresh}
+            className="ml-btn ghost"
+            style={{ width: '100%', justifyContent: 'flex-start' }}
+          >
+            <RefreshCw size={12} /> Refresh
+          </button>
+        </div>
+      )}
     </div>
   );
 }

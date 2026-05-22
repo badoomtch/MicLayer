@@ -1,103 +1,283 @@
-// Dashboard — real input meters + device picker + engine controls +
-// Record Test launcher + virtual-mic status.
+// Dashboard — designed by the Claude Design handoff.
+// Layout: page head with action buttons → hero row (device + sink status)
+// → big meters card → quick controls.
 
 import { useEffect, useState } from 'react';
-import { Mic, CheckCircle2, AlertTriangle, ExternalLink, Download, Wand2 } from 'lucide-react';
+import { Sparkles, AlertTriangle, ExternalLink, Download, Play, Square } from 'lucide-react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 import { useAppStore } from '../../state/useAppStore';
 import { LevelMeter } from '../../shared/LevelMeter';
 import { DeviceSelector } from '../../shared/DeviceSelector';
-import { EngineControls } from '../../shared/EngineControls';
-import { RecordTestModal } from '../recorder/RecordTestModal';
-import { AutoTuneWizard } from '../wizard/AutoTuneWizard';
+import { Slider } from '../../shared/Slider';
+import { engineStart, engineStop } from '../../ipc/commands';
 import { engineSinkStatus, VB_CABLE_DOWNLOAD_URL, type SinkStatus } from '../../ipc/sink';
 import { vbcableInstall, onVbCableProgress, type InstallProgress } from '../../ipc/vbcable';
+import { RecordTestModal } from '../recorder/RecordTestModal';
+import { AutoTuneWizard } from '../wizard/AutoTuneWizard';
 
 export function Dashboard() {
-  const { engine } = useAppStore((s) => ({ engine: s.engine }));
+  const { engine, modules, updateModule } = useAppStore((s) => ({
+    engine: s.engine,
+    modules: s.modules,
+    updateModule: s.updateModule,
+  }));
   const { meters } = engine;
   const [recorderOpen, setRecorderOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [sink, setSink] = useState<SinkStatus | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  // Refresh sink status on mount and whenever engine status changes.
   useEffect(() => {
-    engineSinkStatus()
-      .then(setSink)
-      .catch((e) => console.error('engine_sink_status failed', e));
+    engineSinkStatus().then(setSink).catch((e) => console.error('sink status', e));
   }, [engine.status]);
 
-  return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <Card title="Microphone">
-        <div className="flex flex-col gap-4">
-          <DeviceSelector />
-          <div className="flex flex-wrap items-center gap-3">
-            <EngineControls />
-            <button
-              type="button"
-              onClick={() => setRecorderOpen(true)}
-              disabled={engine.status !== 'running'}
-              className={
-                'inline-flex items-center gap-2 rounded-pill px-3 py-2 text-sm ' +
-                (engine.status === 'running'
-                  ? 'border border-muted/30 hover:border-accent/60'
-                  : 'border border-muted/20 text-muted cursor-not-allowed')
-              }
-            >
-              <Mic className="h-3.5 w-3.5" /> Record test
-            </button>
-            <button
-              type="button"
-              onClick={() => setWizardOpen(true)}
-              disabled={engine.status !== 'running'}
-              className={
-                'inline-flex items-center gap-2 rounded-pill px-3 py-2 text-sm ' +
-                (engine.status === 'running'
-                  ? 'border border-muted/30 hover:border-accent/60'
-                  : 'border border-muted/20 text-muted cursor-not-allowed')
-              }
-            >
-              <Wand2 className="h-3.5 w-3.5" /> Auto-tune
-            </button>
-          </div>
-        </div>
-      </Card>
+  const onStartStop = async () => {
+    setBusy(true);
+    try {
+      if (engine.status === 'running' || engine.status === 'starting') await engineStop();
+      else await engineStart();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
 
-      <Card title="Levels">
-        <div className="flex flex-col gap-3">
-          <LevelMeter
-            label="Input"
-            peakDb={meters.inputPeakDb}
-            rmsDb={meters.inputRmsDb}
-            clipping={meters.clipping}
-          />
-          <LevelMeter
-            label="Output"
-            peakDb={meters.outputPeakDb}
-            rmsDb={meters.outputRmsDb}
-            clipping={meters.clipping}
-          />
-          <div className="flex justify-between pt-1 text-xs text-muted">
-            <span>
-              Noise floor:{' '}
-              <span className="text-fg">
-                {Number.isFinite(meters.noiseFloorDb)
-                  ? `${meters.noiseFloorDb.toFixed(1)} dB`
-                  : '—'}
+  const running = engine.status === 'running' || engine.status === 'starting';
+
+  return (
+    <div className="ml-page">
+      <div className="ml-page-head">
+        <div>
+          <div className="ml-page-title">Dashboard</div>
+          <div className="ml-page-sub">Your mic, processed locally, ready for any app.</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="ml-btn"
+            type="button"
+            disabled={!running}
+            onClick={() => setRecorderOpen(true)}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: 'var(--ml-bad)',
+              }}
+            />
+            Record test
+          </button>
+          <button
+            className="ml-btn"
+            type="button"
+            disabled={!running}
+            onClick={() => setWizardOpen(true)}
+          >
+            <Sparkles size={12} />
+            Auto-tune
+          </button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1.4fr 1fr',
+          gap: 12,
+          marginBottom: 14,
+        }}
+      >
+        <div className="ml-card ml-card-pad" style={{ paddingTop: 14, paddingBottom: 14 }}>
+          <div className="ml-eyebrow" style={{ marginBottom: 8 }}>
+            Input device
+          </div>
+          <DeviceSelector />
+        </div>
+
+        <div className="ml-card ml-card-pad" style={{ paddingTop: 14, paddingBottom: 14 }}>
+          <div className="ml-eyebrow" style={{ marginBottom: 8 }}>
+            Virtual microphone
+          </div>
+          <SinkStatusBlock sink={sink} engineRunning={running} />
+        </div>
+      </div>
+
+      <div className="ml-card" style={{ padding: '22px 26px', marginBottom: 14 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em' }}>Signal</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span className="ml-mono" style={{ fontSize: 11, color: 'var(--ml-fg-faint)' }}>
+              Noise floor{' '}
+              <span style={{ color: 'var(--ml-fg-muted)' }}>
+                {Number.isFinite(meters.noiseFloorDb) ? `${meters.noiseFloorDb.toFixed(1)} dB` : '—'}
               </span>
             </span>
-            <span>
-              Engine: <span className="text-fg">{engine.status}</span>
-            </span>
+            <button
+              type="button"
+              className={'ml-btn' + (running ? '' : ' primary')}
+              disabled={busy || !engine.selectedDeviceId}
+              onClick={onStartStop}
+              style={{ padding: '6px 12px' }}
+            >
+              {running ? <Square size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+              {running ? 'Stop engine' : 'Start engine'}
+            </button>
           </div>
         </div>
-      </Card>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <LevelMeter
+            label="Input · raw"
+            peakDb={meters.inputPeakDb}
+            peakHoldDb={meters.inputPeakDb}
+            clipping={meters.clipping}
+            thick
+          />
+          <LevelMeter
+            label="Output · tuned"
+            peakDb={meters.outputPeakDb}
+            peakHoldDb={meters.outputPeakDb}
+            clipping={meters.clipping}
+            thick
+          />
+        </div>
+      </div>
 
-      <Card title="Virtual microphone">
-        <SinkStatusBody sink={sink} engineRunning={engine.status === 'running'} />
-      </Card>
+      {/* Quick controls — map to the underlying module params for beginner editing */}
+      <div className="ml-card" style={{ padding: '18px 26px' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            marginBottom: 14,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Quick controls</div>
+          <button
+            type="button"
+            onClick={() => useAppStore.getState().setSection('tune')}
+            style={{
+              background: 'transparent',
+              border: 0,
+              fontSize: 12,
+              color: 'var(--ml-accent)',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            Open Tune for advanced →
+          </button>
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            columnGap: 28,
+            rowGap: 10,
+          }}
+        >
+          <Slider
+            label="Clean up"
+            value={Math.round(modules.noiseSuppression.params.amount * 100)}
+            min={0}
+            max={100}
+            step={1}
+            unit=" %"
+            precision={0}
+            onChange={(v) =>
+              updateModule('noiseSuppression', {
+                ...modules.noiseSuppression,
+                enabled: v > 0,
+                params: { ...modules.noiseSuppression.params, amount: v / 100 },
+              })
+            }
+          />
+          <Slider
+            label="Loudness"
+            value={modules.compressor.params.ratio}
+            min={1}
+            max={10}
+            step={0.1}
+            display={`${modules.compressor.params.ratio.toFixed(1)} : 1`}
+            onChange={(v) =>
+              updateModule('compressor', {
+                ...modules.compressor,
+                params: { ...modules.compressor.params, ratio: v },
+              })
+            }
+          />
+          <Slider
+            label="Warmth"
+            value={modules.eq.params.bands[0]?.gainDb ?? 0}
+            min={-12}
+            max={12}
+            step={0.1}
+            unit=" dB"
+            bipolar
+            onChange={(v) => {
+              const bands = modules.eq.params.bands.map((b, i) =>
+                i === 0 ? { ...b, gainDb: v, enabled: true } : b,
+              ) as typeof modules.eq.params.bands;
+              updateModule('eq', { ...modules.eq, enabled: true, params: { bands } });
+            }}
+          />
+          <Slider
+            label="Sibilance"
+            value={modules.deEsser.params.amountDb}
+            min={0}
+            max={12}
+            step={0.5}
+            unit=" dB"
+            onChange={(v) =>
+              updateModule('deEsser', {
+                ...modules.deEsser,
+                enabled: v > 0,
+                params: { ...modules.deEsser.params, amountDb: v },
+              })
+            }
+          />
+          <Slider
+            label="Clarity"
+            value={modules.eq.params.bands[2]?.gainDb ?? 0}
+            min={-12}
+            max={12}
+            step={0.1}
+            unit=" dB"
+            bipolar
+            onChange={(v) => {
+              const bands = modules.eq.params.bands.map((b, i) =>
+                i === 2 ? { ...b, gainDb: v, enabled: true } : b,
+              ) as typeof modules.eq.params.bands;
+              updateModule('eq', { ...modules.eq, enabled: true, params: { bands } });
+            }}
+          />
+          <Slider
+            label="Output"
+            value={modules.outputGain.params.gainDb}
+            min={-12}
+            max={12}
+            step={0.1}
+            unit=" dB"
+            bipolar
+            onChange={(v) =>
+              updateModule('outputGain', {
+                ...modules.outputGain,
+                params: { gainDb: v },
+              })
+            }
+          />
+        </div>
+      </div>
 
       <RecordTestModal open={recorderOpen} onClose={() => setRecorderOpen(false)} />
       <AutoTuneWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
@@ -105,137 +285,86 @@ export function Dashboard() {
   );
 }
 
-function SinkStatusBody({
-  sink,
-  engineRunning,
-}: {
-  sink: SinkStatus | null;
-  engineRunning: boolean;
-}) {
+function SinkStatusBlock({ sink, engineRunning }: { sink: SinkStatus | null; engineRunning: boolean }) {
   const [progress, setProgress] = useState<InstallProgress | null>(null);
-
   useEffect(() => {
+    let off: (() => void) | null = null;
     let cancelled = false;
-    let unlisten: (() => void) | null = null;
-    onVbCableProgress((p) => setProgress(p)).then((off) => {
-      if (cancelled) off();
-      else unlisten = off;
+    onVbCableProgress((p) => setProgress(p)).then((u) => {
+      if (cancelled) u();
+      else off = u;
     });
     return () => {
       cancelled = true;
-      if (unlisten) unlisten();
+      if (off) off();
     };
   }, []);
 
-  const install = async () => {
-    setProgress({ stage: 'downloading', percent: 0, message: 'Starting…' });
-    try {
-      await vbcableInstall();
-    } catch (e) {
-      setProgress({ stage: 'failed', percent: 0, message: String(e) });
-    }
-  };
-
-  if (!sink) return <p className="text-sm text-muted">Checking…</p>;
+  if (!sink) return <div style={{ fontSize: 12, color: 'var(--ml-fg-muted)' }}>Checking…</div>;
 
   if (sink.installed && sink.active) {
     return (
-      <div className="flex items-start gap-2">
-        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-meterLow" />
-        <p className="text-sm text-fg">
-          Audio is flowing to{' '}
-          <code className="rounded bg-bg px-1 py-0.5">
-            {sink.windows_facing_name ?? 'CABLE Output'}
-          </code>
-          . Select that device as your microphone in Discord, OBS, Zoom, your browser,
-          or wherever you want the tuned signal.
-        </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span className="ml-pill good">
+          <span className="ml-dot" /> Audio flowing
+        </span>
+        <span style={{ fontSize: 11.5, color: 'var(--ml-fg-muted)' }}>via CABLE Output</span>
       </div>
     );
   }
-
   if (sink.installed && !sink.active) {
     return (
-      <div className="flex items-start gap-2">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-meterMid" />
-        <p className="text-sm text-muted">
-          VB-CABLE is installed but the sink isn't open yet.{' '}
-          {engineRunning
-            ? 'Restart the engine if this persists.'
-            : 'Click Start engine above to begin sending audio.'}
-        </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span className="ml-pill warn">
+          <AlertTriangle size={11} /> Sink closed
+        </span>
+        <span style={{ fontSize: 11.5, color: 'var(--ml-fg-muted)' }}>
+          {engineRunning ? 'restart engine' : 'start the engine'}
+        </span>
       </div>
     );
   }
 
-  const isInstalling = progress && progress.stage !== 'done' && progress.stage !== 'failed';
+  const installing = progress && progress.stage !== 'done' && progress.stage !== 'failed';
 
   return (
-    <div className="flex items-start gap-3">
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-meterMid" />
-      <div className="flex-1 text-sm">
-        <p className="text-fg">VB-CABLE isn't installed.</p>
-        <p className="mt-1 text-xs text-muted">
-          MicLayer can install VB-CABLE for you — it'll download the official VB-Audio
-          installer and run it. Windows will ask for administrator permission.
-        </p>
-        {isInstalling && (
-          <div className="mt-2 flex flex-col gap-1">
-            <p className="text-xs text-fg">{progress!.message}</p>
-            {progress!.stage === 'downloading' && (
-              <div className="h-1 w-full overflow-hidden rounded-pill bg-bg">
-                <div
-                  className="h-full bg-accent transition-[width] duration-200"
-                  style={{ width: `${Math.min(100, progress!.percent)}%` }}
-                />
-              </div>
-            )}
-          </div>
-        )}
-        {progress?.stage === 'failed' && (
-          <p className="mt-2 text-xs text-meterHigh">{progress.message}</p>
-        )}
-        <div className="mt-2 flex gap-2">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span className="ml-pill warn">
+          <AlertTriangle size={11} /> VB-CABLE missing
+        </span>
+        <button
+          type="button"
+          className="ml-btn primary"
+          style={{ padding: '6px 10px', fontSize: 12 }}
+          disabled={!!installing}
+          onClick={() => {
+            setProgress({ stage: 'downloading', percent: 0, message: 'Starting…' });
+            vbcableInstall().catch((e) =>
+              setProgress({ stage: 'failed', percent: 0, message: String(e) }),
+            );
+          }}
+        >
+          <Download size={12} /> Install for me
+        </button>
+      </div>
+      {installing && (
+        <div style={{ fontSize: 11.5, color: 'var(--ml-fg-muted)' }}>{progress!.message}</div>
+      )}
+      {progress?.stage === 'failed' && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 11.5, color: 'var(--ml-bad)' }}>{progress.message}</span>
           <button
             type="button"
-            onClick={install}
-            disabled={!!isInstalling}
-            className={
-              'inline-flex items-center gap-1 rounded-pill px-3 py-1 text-xs ' +
-              (isInstalling
-                ? 'bg-bg text-muted cursor-not-allowed'
-                : 'bg-accent/15 text-fg hover:bg-accent/25')
-            }
-          >
-            <Download className="h-3 w-3" /> Install VB-CABLE for me
-          </button>
-          <button
-            type="button"
+            className="ml-btn ghost"
+            style={{ padding: '4px 8px', fontSize: 11.5 }}
             onClick={() => openUrl(VB_CABLE_DOWNLOAD_URL).catch(() => null)}
-            className="inline-flex items-center gap-1 rounded-pill border border-muted/30 px-3 py-1 text-xs text-muted hover:border-accent/60 hover:text-fg"
           >
-            <ExternalLink className="h-3 w-3" />
-            Manual download
+            <ExternalLink size={11} /> Manual download
           </button>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-function Card({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-card border border-surface/60 bg-surface p-5">
-      <header className="mb-3">
-        <h2 className="text-base font-semibold">{title}</h2>
-      </header>
-      {children}
-    </section>
-  );
-}

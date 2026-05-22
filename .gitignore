@@ -44,6 +44,9 @@ installer/output/
 *.zip
 !docs/**/*.zip
 
+# Local design handoff bundle
+.design-pkg/
+
 # Environment
 .env
 .env.*

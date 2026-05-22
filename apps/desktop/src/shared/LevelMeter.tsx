@@ -1,60 +1,82 @@
-// Peak + RMS level meter. dB scale, log-mapped to width.
-//
-// Colour zones (per docs/ui-plan.md §3): green to -12 dB, amber to -3 dB,
-// red above. RMS shown as a subtle inner bar.
+// Level meter — peak + peak-hold + dB scale.
+// dB axis: -60 dB to 0 dB mapped to 0..1 normalised meter position.
 
 interface LevelMeterProps {
-  label: string;
+  label?: string;
   peakDb: number;
-  rmsDb: number;
-  /** Show a red highlight if clipping occurred in the current window. */
+  rmsDb?: number;
+  /** Linear 0..1 peak-hold marker (optional). */
+  peakHoldDb?: number;
   clipping?: boolean;
+  thick?: boolean;
+  /** Show the dB scale ruler beneath. */
+  scale?: boolean;
 }
 
 const MIN_DB = -60;
 const MAX_DB = 0;
 
-function dbToPct(db: number): number {
+function dbToFraction(db: number): number {
   if (!Number.isFinite(db)) return 0;
   const clamped = Math.max(MIN_DB, Math.min(MAX_DB, db));
-  return ((clamped - MIN_DB) / (MAX_DB - MIN_DB)) * 100;
+  return (clamped - MIN_DB) / (MAX_DB - MIN_DB);
 }
 
-function colourFor(db: number): string {
-  if (db >= -3) return 'bg-meterHigh';
-  if (db >= -12) return 'bg-meterMid';
-  return 'bg-meterLow';
-}
-
-export function LevelMeter({ label, peakDb, rmsDb, clipping }: LevelMeterProps) {
-  const peakPct = dbToPct(peakDb);
-  const rmsPct = dbToPct(rmsDb);
-  const peakColour = colourFor(peakDb);
+export function LevelMeter({
+  label,
+  peakDb,
+  peakHoldDb,
+  clipping,
+  thick = true,
+  scale = true,
+}: LevelMeterProps) {
+  const peakFrac = dbToFraction(peakDb);
+  const holdFrac = peakHoldDb !== undefined ? dbToFraction(peakHoldDb) : undefined;
 
   return (
-    <div className="flex flex-col gap-1" role="group" aria-label={label}>
-      <div className="flex items-baseline justify-between text-xs text-muted">
-        <span>{label}</span>
-        <span aria-live="polite">
-          {Number.isFinite(peakDb) ? `${peakDb.toFixed(1)} dB` : '—'}
-        </span>
-      </div>
+    <div style={{ width: '100%' }} role="group" aria-label={label}>
+      {label && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            marginBottom: 6,
+          }}
+        >
+          <span className="ml-eyebrow">{label}</span>
+          <span className="ml-mono" style={{ fontSize: 11, color: 'var(--ml-fg-muted)' }}>
+            {Number.isFinite(peakDb) ? `${peakDb.toFixed(1)} dB peak` : '—'}
+          </span>
+        </div>
+      )}
       <div
-        className={
-          'relative h-3 overflow-hidden rounded-pill bg-bg ' +
-          (clipping ? 'ring-1 ring-meterHigh/70' : '')
-        }
+        className={'ml-meter' + (thick ? ' thick' : '')}
+        style={clipping ? { boxShadow: '0 0 0 1px var(--ml-bad) inset' } : undefined}
       >
         <div
-          className={'absolute inset-y-0 left-0 ' + peakColour}
-          style={{ width: `${peakPct}%`, transition: 'width 50ms linear' }}
+          className="ml-meter-fill"
+          style={{ width: `${peakFrac * 100}%`, transition: 'width 60ms linear' }}
         />
-        <div
-          className="absolute inset-y-0 left-0 bg-fg/20"
-          style={{ width: `${rmsPct}%`, transition: 'width 80ms linear' }}
-          aria-hidden
-        />
+        {holdFrac !== undefined && (
+          <div className="ml-meter-peak" style={{ left: `calc(${holdFrac * 100}% - 1px)` }} />
+        )}
+        <div className="ml-meter-ticks">
+          {[0.25, 0.5, 0.75, 0.85, 0.95].map((t) => (
+            <div key={t} className="ml-meter-tick" style={{ left: `${t * 100}%` }} />
+          ))}
+        </div>
       </div>
+      {scale && (
+        <div className="ml-meter-scale">
+          <span>−∞</span>
+          <span>−42</span>
+          <span>−24</span>
+          <span>−12</span>
+          <span>−6</span>
+          <span>0 dBFS</span>
+        </div>
+      )}
     </div>
   );
 }

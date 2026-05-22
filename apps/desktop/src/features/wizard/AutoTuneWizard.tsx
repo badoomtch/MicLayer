@@ -1,8 +1,9 @@
-// Auto-tune wizard: three phases of recording, then plain-English
-// recommendations + apply-as-new-profile.
+// Auto-tune wizard. Steps: intro → silence → normal → loud → review.
+// Stepper at the top, circular countdown during capture, recommendations
+// at review.
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Mic, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { Check, ChevronRight, Sparkles } from 'lucide-react';
 
 import {
   recordingStart,
@@ -14,7 +15,7 @@ import { wizardAnalyze, wizardSynthesize, type PhaseStats } from '../../ipc/wiza
 import { profileSave } from '../../ipc/profiles';
 import { useAppStore } from '../../state/useAppStore';
 
-type Phase = 'intro' | 'silence' | 'normal' | 'loud' | 'analyzing' | 'review' | 'saved';
+type Step = 'intro' | 'silence' | 'normal' | 'loud' | 'analyzing' | 'review' | 'saved';
 
 interface PhaseDef {
   id: 'silence' | 'normal' | 'loud';
@@ -26,33 +27,35 @@ interface PhaseDef {
 const PHASES: PhaseDef[] = [
   {
     id: 'silence',
-    label: 'Quiet room',
-    prompt: 'Stay completely silent. We need to hear your room.',
+    label: 'Silence',
+    prompt: "Stay quiet for five seconds. We're measuring your room.",
     durationMs: 5_000,
   },
   {
     id: 'normal',
-    label: 'Normal voice',
-    prompt: 'Speak as you normally would. Read this aloud, or say anything.',
+    label: 'Normal',
+    prompt: 'Speak as you normally would — a sentence at your natural volume.',
     durationMs: 8_000,
   },
   {
     id: 'loud',
-    label: 'Loud voice',
-    prompt: 'Speak loudly — like you\'re excited or hyping up a stream.',
+    label: 'Loud',
+    prompt: "Now something louder, like you're excited or laughing.",
     durationMs: 4_000,
   },
 ];
 
-interface AutoTuneWizardProps {
+const STEPPER = ['Intro', 'Silence', 'Normal', 'Loud', 'Review'] as const;
+
+interface Props {
   open: boolean;
   onClose: () => void;
 }
 
-export function AutoTuneWizard({ open, onClose }: AutoTuneWizardProps) {
+export function AutoTuneWizard({ open, onClose }: Props) {
   const engineRunning = useAppStore((s) => s.engine.status === 'running');
   const setActiveProfile = useAppStore((s) => s.setActiveProfile);
-  const [phase, setPhase] = useState<Phase>('intro');
+  const [step, setStep] = useState<Step>('intro');
   const [elapsedMs, setElapsedMs] = useState(0);
   const [stats, setStats] = useState<Record<'silence' | 'normal' | 'loud', PhaseStats | null>>({
     silence: null,
@@ -62,12 +65,11 @@ export function AutoTuneWizard({ open, onClose }: AutoTuneWizardProps) {
   const [recs, setRecs] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [profileName, setProfileName] = useState('Auto-tune');
-  const handleRef = useRef<RecordingHandle | null>(null);
-  const tick = useRef<number | null>(null);
+  const tickRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setPhase('intro');
+    setStep('intro');
     setStats({ silence: null, normal: null, loud: null });
     setRecs(null);
     setError(null);
@@ -77,32 +79,31 @@ export function AutoTuneWizard({ open, onClose }: AutoTuneWizardProps) {
 
   useEffect(() => {
     return () => {
-      if (tick.current !== null) window.clearInterval(tick.current);
+      if (tickRef.current !== null) window.clearInterval(tickRef.current);
     };
   }, []);
 
   const runPhase = async (def: PhaseDef) => {
     setError(null);
     setElapsedMs(0);
-    setPhase(def.id);
+    setStep(def.id);
     try {
       const h = await recordingStart();
-      handleRef.current = h;
-      const start = performance.now();
-      tick.current = window.setInterval(() => {
-        const el = performance.now() - start;
+      const startTs = performance.now();
+      tickRef.current = window.setInterval(() => {
+        const el = performance.now() - startTs;
         setElapsedMs(el);
         if (el >= def.durationMs) {
-          if (tick.current !== null) {
-            window.clearInterval(tick.current);
-            tick.current = null;
+          if (tickRef.current !== null) {
+            window.clearInterval(tickRef.current);
+            tickRef.current = null;
           }
           finishPhase(def, h);
         }
       }, 80);
     } catch (e) {
       setError(String(e));
-      setPhase('intro');
+      setStep('intro');
     }
   };
 
@@ -111,37 +112,32 @@ export function AutoTuneWizard({ open, onClose }: AutoTuneWizardProps) {
       const stopped = await recordingStop();
       const rawPath = (stopped ?? h).raw_path;
       const s = await wizardAnalyze(rawPath);
-      // Recordings created by the wizard are temporary — discard them now.
       try {
         await recordingDiscard(rawPath);
-      } catch (e) {
-        console.warn('wizard: discard failed', e);
+      } catch (err) {
+        console.warn(err);
       }
       const next = { ...stats, [def.id]: s };
       setStats(next);
-      // Advance to next phase or analyze.
-      if (def.id === 'silence') {
-        await runPhase(PHASES[1]!);
-      } else if (def.id === 'normal') {
-        await runPhase(PHASES[2]!);
-      } else {
-        setPhase('analyzing');
+      if (def.id === 'silence') await runPhase(PHASES[1]!);
+      else if (def.id === 'normal') await runPhase(PHASES[2]!);
+      else {
+        setStep('analyzing');
         if (next.silence && next.normal && next.loud) {
           try {
             const result = await wizardSynthesize(next.silence, next.normal, next.loud);
             setRecs(result.recommendations);
-            // Apply suggested modules into the live engine state.
             useAppStore.getState().setModules(result.modules);
-            setPhase('review');
-          } catch (e) {
-            setError(String(e));
-            setPhase('intro');
+            setStep('review');
+          } catch (err) {
+            setError(String(err));
+            setStep('intro');
           }
         }
       }
     } catch (e) {
       setError(String(e));
-      setPhase('intro');
+      setStep('intro');
     }
   };
 
@@ -154,12 +150,12 @@ export function AutoTuneWizard({ open, onClose }: AutoTuneWizardProps) {
   };
 
   const saveProfile = async () => {
-    const trimmed = profileName.trim() || 'Auto-tune';
+    const name = profileName.trim() || 'Auto-tune';
     const modules = useAppStore.getState().modules;
     const profile = {
       schemaVersion: 1 as const,
       id: crypto.randomUUID(),
-      name: trimmed,
+      name,
       kind: 'user' as const,
       author: 'Auto-tune',
       notes: 'Generated by MicLayer auto-tune.',
@@ -168,7 +164,7 @@ export function AutoTuneWizard({ open, onClose }: AutoTuneWizardProps) {
     try {
       const saved = await profileSave(profile);
       setActiveProfile(saved);
-      setPhase('saved');
+      setStep('saved');
     } catch (e) {
       setError(String(e));
     }
@@ -176,162 +172,326 @@ export function AutoTuneWizard({ open, onClose }: AutoTuneWizardProps) {
 
   if (!open) return null;
 
-  const activePhase = PHASES.find((p) => p.id === phase);
-  const progressPct =
-    activePhase && elapsedMs > 0
-      ? Math.min(100, (elapsedMs / activePhase.durationMs) * 100)
-      : 0;
+  const stepIdx =
+    step === 'intro'
+      ? 0
+      : step === 'silence'
+        ? 1
+        : step === 'normal'
+          ? 2
+          : step === 'loud'
+            ? 3
+            : 4;
+
+  const activePhase = PHASES.find((p) => p.id === step);
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm"
-    >
-      <div className="w-[640px] max-w-[92vw] rounded-card border border-surface/60 bg-surface p-6 shadow-xl">
-        <header className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold">Auto-tune</h2>
-          {(phase === 'intro' || phase === 'review' || phase === 'saved') && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-pill p-1 text-muted hover:bg-bg hover:text-fg"
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" />
-            </button>
+    <div className="ml-scrim" role="dialog" aria-modal="true">
+      <div className="ml-modal" style={{ maxWidth: 640 }}>
+        <div className="ml-modal-head">
+          <Stepper currentIdx={stepIdx} />
+          {step === 'intro' && (
+            <>
+              <div className="ml-modal-title">Let's listen to your room.</div>
+              <div className="ml-modal-sub">
+                Three short captures — silence, normal speech, loud speech — then we'll suggest a
+                starting point in plain English. The audio stays on your computer.
+              </div>
+            </>
           )}
-        </header>
+          {step === 'silence' && (
+            <>
+              <div className="ml-modal-title">Stay quiet for five seconds.</div>
+              <div className="ml-modal-sub">Don't hold your breath.</div>
+            </>
+          )}
+          {step === 'normal' && (
+            <>
+              <div className="ml-modal-title">Speak normally for eight seconds.</div>
+              <div className="ml-modal-sub">Read a sentence or two at your natural volume.</div>
+            </>
+          )}
+          {step === 'loud' && (
+            <>
+              <div className="ml-modal-title">Now something louder.</div>
+              <div className="ml-modal-sub">
+                Speak as if you're excited or laughing. We'll set the limiter to keep your peaks
+                polite.
+              </div>
+            </>
+          )}
+          {step === 'analyzing' && (
+            <>
+              <div className="ml-modal-title">One moment…</div>
+              <div className="ml-modal-sub">Analyzing the three samples.</div>
+            </>
+          )}
+          {step === 'review' && (
+            <>
+              <div className="ml-modal-title">Here's what we heard.</div>
+              <div className="ml-modal-sub">
+                Save as a new profile and try it. You can always re-run later.
+              </div>
+            </>
+          )}
+          {step === 'saved' && (
+            <>
+              <div className="ml-modal-title">Saved.</div>
+              <div className="ml-modal-sub">Your new profile is active.</div>
+            </>
+          )}
+        </div>
 
-        {error && (
-          <p className="mb-3 rounded-card border border-meterHigh/30 bg-meterHigh/10 p-3 text-xs text-meterHigh">
-            {error}
-          </p>
-        )}
-
-        {phase === 'intro' && (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-fg">
-              MicLayer will listen for about 20 seconds across three phases and recommend
-              a starting tuning for your mic and room.
+        <div className="ml-modal-body">
+          {error && (
+            <p
+              style={{
+                marginBottom: 10,
+                fontSize: 12,
+                color: 'var(--ml-bad)',
+                background: 'color-mix(in oklch, var(--ml-bad) 8%, transparent)',
+                border: '1px solid color-mix(in oklch, var(--ml-bad) 30%, transparent)',
+                borderRadius: 'var(--ml-r-md)',
+                padding: '10px 12px',
+              }}
+            >
+              {error}
             </p>
-            <ol className="text-sm text-muted">
-              {PHASES.map((p, i) => (
-                <li key={p.id} className="flex items-start gap-2 py-0.5">
-                  <span className="w-4 text-fg">{i + 1}.</span>
-                  <span>
-                    <span className="text-fg">{p.label}</span> — {p.prompt}
-                  </span>
-                </li>
-              ))}
-            </ol>
-            <p className="text-xs text-muted">
-              Audio never leaves your computer. The samples are deleted as soon as analysis finishes.
-            </p>
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={startWizard}
-                disabled={!engineRunning}
-                className={
-                  'inline-flex items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium ' +
-                  (engineRunning
-                    ? 'bg-accent/20 text-fg hover:bg-accent/30'
-                    : 'bg-bg text-muted cursor-not-allowed')
-                }
-              >
-                <Mic className="h-4 w-4" /> Start
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-pill border border-muted/30 px-3 py-2 text-xs text-muted hover:border-accent/60"
-              >
-                Cancel
-              </button>
-            </div>
-            {!engineRunning && (
-              <p className="text-xs text-meterMid">Start the audio engine from the Dashboard first.</p>
-            )}
-          </div>
-        )}
+          )}
 
-        {activePhase && (phase === 'silence' || phase === 'normal' || phase === 'loud') && (
-          <div className="flex flex-col gap-3 py-2">
-            <div className="text-xs uppercase tracking-wide text-muted">
-              Phase {PHASES.findIndex((p) => p.id === activePhase.id) + 1} of {PHASES.length}
-            </div>
-            <div className="text-lg font-semibold text-fg">{activePhase.label}</div>
-            <p className="text-sm text-muted">{activePhase.prompt}</p>
-            <div className="text-3xl font-mono tabular-nums">
-              {((activePhase.durationMs - elapsedMs) / 1000).toFixed(1)}s
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-pill bg-bg">
-              <div
-                className="h-full bg-meterHigh transition-[width] duration-100"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {phase === 'analyzing' && (
-          <p className="text-sm text-muted">Analyzing…</p>
-        )}
-
-        {phase === 'review' && recs && (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-fg">Done. Here's what I changed and why:</p>
-            <ul className="flex flex-col gap-2">
-              {recs.map((r, i) => (
+          {step === 'intro' && (
+            <ul
+              style={{
+                listStyle: 'none',
+                padding: 0,
+                margin: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              {[
+                'About 20 seconds total.',
+                "Stay where you'll be when you actually use MicLayer.",
+                "Headphones recommended so playback doesn't bleed into the mic.",
+              ].map((s, i) => (
                 <li
                   key={i}
-                  className="flex items-start gap-2 rounded-card border border-surface/60 bg-bg p-3 text-xs"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    fontSize: 12.5,
+                  }}
                 >
-                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-meterLow" />
-                  <span className="text-fg">{r}</span>
+                  <Check size={14} style={{ color: 'var(--ml-accent)', marginTop: 1 }} />
+                  <span>{s}</span>
                 </li>
               ))}
             </ul>
-            <div className="flex items-center gap-2 pt-2">
-              <input
-                value={profileName}
-                onChange={(e) => setProfileName(e.target.value)}
-                placeholder="Name for the new profile"
-                className="flex-1 rounded-pill border border-muted/30 bg-bg px-3 py-1.5 text-sm text-fg focus:border-accent focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={saveProfile}
-                className="inline-flex items-center gap-1 rounded-pill bg-accent/20 px-4 py-1.5 text-sm text-fg hover:bg-accent/30"
-              >
-                Save as profile <ChevronRight className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
-        )}
+          )}
 
-        {phase === 'saved' && (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2 text-fg">
-              <CheckCircle2 className="h-5 w-5 text-meterLow" />
-              <span>Profile saved and applied.</span>
+          {activePhase && (
+            <CaptureBlock
+              phase={activePhase}
+              elapsedMs={elapsedMs}
+            />
+          )}
+
+          {step === 'analyzing' && (
+            <p style={{ fontSize: 12, color: 'var(--ml-fg-muted)' }}>Analyzing…</p>
+          )}
+
+          {step === 'review' && recs && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {recs.map((r, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    alignItems: 'flex-start',
+                    padding: '10px 12px',
+                    background: 'var(--ml-surface-2)',
+                    border: '1px solid var(--ml-border)',
+                    borderRadius: 'var(--ml-r-md)',
+                  }}
+                >
+                  <Check size={14} style={{ color: 'var(--ml-good)', marginTop: 2 }} />
+                  <span style={{ fontSize: 12.5 }}>{r}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+                <input
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  className="ml-input"
+                  placeholder="Name for the new profile"
+                />
+              </div>
             </div>
-            <p className="text-xs text-muted">
-              Your new profile is now the active one. Talk into the mic — you should hear the difference
-              compared to the raw signal.
-            </p>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-pill bg-accent/20 px-4 py-1.5 text-sm text-fg hover:bg-accent/30"
-              >
-                Done
+          )}
+
+          {step === 'saved' && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                fontSize: 13,
+              }}
+            >
+              <Sparkles size={16} style={{ color: 'var(--ml-accent)' }} />
+              Your new profile is active.
+            </div>
+          )}
+        </div>
+
+        <div className="ml-modal-foot">
+          {step === 'intro' && (
+            <>
+              <button type="button" className="ml-btn ghost" onClick={onClose}>
+                Skip
               </button>
+              <button type="button" className="ml-btn primary" onClick={startWizard}>
+                Begin <ChevronRight size={12} />
+              </button>
+            </>
+          )}
+          {(step === 'silence' || step === 'normal' || step === 'loud') && (
+            <>
+              <button type="button" className="ml-btn ghost" onClick={onClose}>
+                Cancel
+              </button>
+              <button type="button" className="ml-btn" disabled>
+                Listening…
+              </button>
+            </>
+          )}
+          {step === 'analyzing' && (
+            <button type="button" className="ml-btn ghost" disabled>
+              Working…
+            </button>
+          )}
+          {step === 'review' && (
+            <>
+              <button type="button" className="ml-btn ghost" onClick={() => setStep('intro')}>
+                Re-run
+              </button>
+              <button type="button" className="ml-btn primary" onClick={saveProfile}>
+                Save as profile <ChevronRight size={12} />
+              </button>
+            </>
+          )}
+          {step === 'saved' && (
+            <button type="button" className="ml-btn primary" onClick={onClose}>
+              Done
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stepper({ currentIdx }: { currentIdx: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+      {STEPPER.map((label, i) => {
+        const isCurrent = i === currentIdx;
+        const isDone = i < currentIdx;
+        const dotBg = isCurrent
+          ? 'var(--ml-accent)'
+          : isDone
+            ? 'color-mix(in oklch, var(--ml-good) 18%, transparent)'
+            : 'var(--ml-surface-2)';
+        const border = isCurrent
+          ? 'transparent'
+          : isDone
+            ? 'color-mix(in oklch, var(--ml-good) 35%, transparent)'
+            : 'var(--ml-border)';
+        return (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                color: isCurrent ? 'var(--ml-fg)' : isDone ? 'var(--ml-good)' : 'var(--ml-fg-faint)',
+              }}
+            >
+              <span
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  background: dotBg,
+                  border: `1px solid ${border}`,
+                  fontSize: 9.5,
+                  fontWeight: 600,
+                  color: isCurrent ? 'var(--ml-accent-fg)' : 'currentColor',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {isDone ? '✓' : i + 1}
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 500 }}>{label}</span>
             </div>
+            {i < STEPPER.length - 1 && (
+              <span style={{ width: 12, height: 1, background: 'var(--ml-border)' }} />
+            )}
           </div>
-        )}
+        );
+      })}
+    </div>
+  );
+}
+
+function CaptureBlock({ phase, elapsedMs }: { phase: PhaseDef; elapsedMs: number }) {
+  const elapsedS = elapsedMs / 1000;
+  const totalS = phase.durationMs / 1000;
+  const remaining = Math.max(0, totalS - elapsedS);
+  const radius = 48;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - elapsedS / totalS);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 6 }}>
+      <p style={{ fontSize: 12.5, color: 'var(--ml-fg)', textAlign: 'center' }}>{phase.prompt}</p>
+      <div
+        style={{
+          position: 'relative',
+          margin: '0 auto',
+          width: 110,
+          height: 110,
+          borderRadius: '50%',
+          background: 'var(--ml-surface-2)',
+          border: '1px solid var(--ml-border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <svg width="110" height="110" viewBox="0 0 110 110" style={{ position: 'absolute' }}>
+          <circle
+            cx="55"
+            cy="55"
+            r={radius}
+            fill="none"
+            stroke="var(--ml-accent)"
+            strokeWidth="3"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            transform="rotate(-90 55 55)"
+            style={{ transition: 'stroke-dashoffset 80ms linear' }}
+          />
+        </svg>
+        <div className="ml-mono" style={{ fontSize: 26, fontWeight: 500 }}>
+          {remaining.toFixed(1)}s
+        </div>
       </div>
     </div>
   );
