@@ -1,0 +1,47 @@
+# Tauri Rust backend.
+
+[package]
+name = "miclayer-tauri"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "miclayer_tauri_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+tauri = { workspace = true, features = ["tray-icon", "protocol-asset"] }
+tauri-plugin-window-state = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+parking_lot.workspace = true
+
+# VB-CABLE bootstrapper: download + extract + silent install
+ureq = "2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# Spawn the VB-CABLE installer with proper UAC elevation (ShellExecuteExW
+# with the `runas` verb). Plain `Command::spawn` doesn't trigger UAC.
+runas = "1"
+
+# Auto-tune wizard: WAV read + bandpass filters for analysis
+hound.workspace = true
+biquad.workspace = true
+
+# Engine
+miclayer-audio = { path = "../../../engine/audio" }
+miclayer-devices = { path = "../../../engine/devices" }
+miclayer-virtual-mic = { path = "../../../engine/virtual-mic" }

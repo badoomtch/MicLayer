@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://miclayer.app/schemas/profile.v1.schema.json",
+  "title": "MicLayer Profile",
+  "description": "Versioned DSP profile for MicLayer. Documented in docs/profile-format.md.",
+  "type": "object",
+  "required": ["schemaVersion", "id", "name", "kind", "modules"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "author": { "type": "string", "maxLength": 128 },
+    "kind": { "type": "string", "enum": ["builtin", "user"] },
+    "notes": { "type": "string", "maxLength": 2048 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "modules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputGain", "highPass", "noiseSuppression", "gate", "eq",
+        "compressor", "deEsser", "limiter", "outputGain"
+      ],
+      "properties": {
+        "inputGain": { "$ref": "#/$defs/moduleInputGain" },
+        "highPass": { "$ref": "#/$defs/moduleHighPass" },
+        "noiseSuppression": { "$ref": "#/$defs/moduleNoiseSuppression" },
+        "gate": { "$ref": "#/$defs/moduleGate" },
+        "eq": { "$ref": "#/$defs/moduleEq" },
+        "compressor": { "$ref": "#/$defs/moduleCompressor" },
+        "deEsser": { "$ref": "#/$defs/moduleDeEsser" },
+        "limiter": { "$ref": "#/$defs/moduleLimiter" },
+        "outputGain": { "$ref": "#/$defs/moduleOutputGain" }
+      }
+    }
+  },
+  "$defs": {
+    "enabledModule": {
+      "type": "object",
+      "required": ["enabled", "params"],
+      "properties": { "enabled": { "type": "boolean" } }
+    },
+    "moduleInputGain": {
+      "allOf": [{ "$ref": "#/$defs/enabledModule" }],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["gainDb"],
+          "properties": {
+            "gainDb": { "type": "number", "minimum": -24, "maximum": 24 }
+          }
+        }
+      }
+    },
+    "moduleHighPass": {
+      "allOf": [{ "$ref": "#/$defs/enabledModule" }],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "cutoffHz", "order"],
+          "properties": {
+            "mode": { "type": "string", "enum": ["off", "low", "medium", "strong", "custom"] },
+            "cutoffHz": { "type": "number", "minimum": 20, "maximum": 300 },
+            "order": { "type": "integer", "enum": [2, 4] }
+          }
+        }
+      }
+    },
+    "moduleNoiseSuppression": {
+      "allOf": [{ "$ref": "#/$defs/enabledModule" }],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["amount", "voiceFloorDb"],
+          "properties": {
+            "amount": { "type": "number", "minimum": 0, "maximum": 1 },
+            "voiceFloorDb": { "type": "number", "minimum": -60, "maximum": -20 }
+          }
+        }
+      }
+    },
+    "moduleGate": {
+      "allOf": [{ "$ref": "#/$defs/enabledModule" }],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["thresholdDb", "rangeDb", "attackMs", "holdMs", "releaseMs", "hysteresisDb"],
+          "properties": {
+            "thresholdDb": { "type": "number", "minimum": -80, "maximum": -20 },
+            "rangeDb": { "type": "number", "minimum": -60, "maximum": 0 },
+            "attackMs": { "type": "number", "minimum": 0.1, "maximum": 50 },
+            "holdMs": { "type": "number", "minimum": 0, "maximum": 1000 },
+            "releaseMs": { "type": "number", "minimum": 10, "maximum": 1000 },
+            "hysteresisDb": { "type": "number", "minimum": 0, "maximum": 10 }
+          }
+        }
+      }
+    },
+    "moduleEq": {
+      "allOf": [{ "$ref": "#/$defs/enabledModule" }],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["bands"],
+          "properties": {
+            "bands": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "frequencyHz", "gainDb", "q", "enabled"],
+                "properties": {
+                  "type": { "type": "string", "enum": ["low_shelf", "peak", "high_shelf", "high_pass", "low_pass"] },
+                  "frequencyHz": { "type": "number", "minimum": 20, "maximum": 20000 },
+                  "gainDb": { "type": "number", "minimum": -24, "maximum": 24 },
+                  "q": { "type": "number", "minimum": 0.1, "maximum": 10 },
+                  "enabled": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "moduleCompressor": {
+      "allOf": [{ "$ref": "#/$defs/enabledModule" }],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["thresholdDb", "ratio", "attackMs", "releaseMs", "kneeDb", "makeupDb", "autoMakeup", "detectorMs"],
+          "properties": {
+            "thresholdDb": { "type": "number", "minimum": -60, "maximum": 0 },
+            "ratio": { "type": "number", "minimum": 1, "maximum": 20 },
+            "attackMs": { "type": "number", "minimum": 0.1, "maximum": 200 },
+            "releaseMs": { "type": "number", "minimum": 10, "maximum": 2000 },
+            "kneeDb": { "type": "number", "minimum": 0, "maximum": 24 },
+            "makeupDb": { "type": "number", "minimum": -12, "maximum": 24 },
+            "autoMakeup": { "type": "boolean" },
+            "detectorMs": { "type": "number", "minimum": 1, "maximum": 50 }
+          }
+        }
+      }
+    },
+    "moduleDeEsser": {
+      "allOf": [{ "$ref": "#/$defs/enabledModule" }],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["targetHz", "thresholdDb", "amountDb", "q"],
+          "properties": {
+            "targetHz": { "type": "number", "minimum": 4000, "maximum": 10000 },
+            "thresholdDb": { "type": "number", "minimum": -50, "maximum": -10 },
+            "amountDb": { "type": "number", "minimum": 0, "maximum": 18 },
+            "q": { "type": "number", "minimum": 0.5, "maximum": 4 }
+          }
+        }
+      }
+    },
+    "moduleLimiter": {
+      "allOf": [{ "$ref": "#/$defs/enabledModule" }],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ceilingDb", "releaseMs", "lookaheadMs"],
+          "properties": {
+            "ceilingDb": { "type": "number", "minimum": -6, "maximum": 0 },
+            "releaseMs": { "type": "number", "minimum": 10, "maximum": 500 },
+            "lookaheadMs": { "type": "number", "minimum": 0, "maximum": 10 }
+          }
+        }
+      }
+    },
+    "moduleOutputGain": {
+      "allOf": [{ "$ref": "#/$defs/enabledModule" }],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["gainDb"],
+          "properties": {
+            "gainDb": { "type": "number", "minimum": -24, "maximum": 12 }
+          }
+        }
+      }
+    }
+  }
+}

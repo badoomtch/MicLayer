@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "11111111-0000-4000-8000-000000000006",
+  "name": "Noisy Room",
+  "author": "MicLayer",
+  "kind": "builtin",
+  "notes": "For loud environments — fans, AC, traffic, kids in the next room. Maxes out noise suppression with a wet/dry mix that keeps your voice natural. Strong gate prevents the silence between sentences from being noisy.",
+  "createdAt": "2026-05-22T00:00:00Z",
+  "updatedAt": "2026-05-22T00:00:00Z",
+  "modules": {
+    "inputGain":        { "enabled": true,  "params": { "gainDb": 0 } },
+    "highPass":         { "enabled": true,  "params": { "mode": "strong", "cutoffHz": 120, "order": 4 } },
+    "noiseSuppression": { "enabled": true,  "params": { "amount": 0.95, "voiceFloorDb": -40 } },
+    "gate":             { "enabled": true,  "params": { "thresholdDb": -42, "rangeDb": -50, "attackMs": 2, "holdMs": 200, "releaseMs": 350, "hysteresisDb": 4 } },
+    "eq": {
+      "enabled": true,
+      "params": {
+        "bands": [
+          { "type": "low_shelf",  "frequencyHz": 200,   "gainDb": 0,   "q": 0.7, "enabled": true },
+          { "type": "peak",       "frequencyHz": 350,   "gainDb": -2,  "q": 1.0, "enabled": true },
+          { "type": "peak",       "frequencyHz": 3000,  "gainDb": 3,   "q": 1.0, "enabled": true },
+          { "type": "peak",       "frequencyHz": 5500,  "gainDb": 2,   "q": 1.2, "enabled": true },
+          { "type": "high_shelf", "frequencyHz": 10000, "gainDb": 1,   "q": 0.7, "enabled": true }
+        ]
+      }
+    },
+    "compressor":       { "enabled": true,  "params": { "thresholdDb": -24, "ratio": 4, "attackMs": 10, "releaseMs": 150, "kneeDb": 5, "makeupDb": 1, "autoMakeup": true, "detectorMs": 10 } },
+    "deEsser":          { "enabled": true,  "params": { "targetHz": 7000, "thresholdDb": -26, "amountDb": 6, "q": 1.5 } },
+    "limiter":          { "enabled": true,  "params": { "ceilingDb": -1, "releaseMs": 50, "lookaheadMs": 2 } },
+    "outputGain":       { "enabled": true,  "params": { "gainDb": 0 } }
+  }
+}

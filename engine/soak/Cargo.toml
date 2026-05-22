@@ -1,0 +1,20 @@
+# SCAFFOLD: dropout / allocation soak test. Asserts zero allocations on the
+# audio thread over a user-configurable duration. See docs/audio-engine.md §7.
+
+[package]
+name = "miclayer-soak"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "miclayer-soak"
+path = "src/main.rs"
+
+[dependencies]
+miclayer-audio = { path = "../audio" }
+miclayer-dsp = { path = "../dsp" }
+tracing.workspace = true
+tracing-subscriber.workspace = true

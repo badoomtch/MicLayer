@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "11111111-0000-4000-8000-000000000002",
+  "name": "Streaming",
+  "author": "MicLayer",
+  "kind": "builtin",
+  "notes": "For Twitch / YouTube live with a USB condenser or decent dynamic mic. Moderate noise cleanup, clarity bump, compression for consistency, safety limiter.",
+  "createdAt": "2026-05-22T00:00:00Z",
+  "updatedAt": "2026-05-22T00:00:00Z",
+  "modules": {
+    "inputGain":        { "enabled": true,  "params": { "gainDb": 0 } },
+    "highPass":         { "enabled": true,  "params": { "mode": "medium", "cutoffHz": 80, "order": 2 } },
+    "noiseSuppression": { "enabled": true,  "params": { "amount": 0.55, "voiceFloorDb": -45 } },
+    "gate":             { "enabled": true,  "params": { "thresholdDb": -50, "rangeDb": -30, "attackMs": 5, "holdMs": 150, "releaseMs": 250, "hysteresisDb": 3 } },
+    "eq": {
+      "enabled": true,
+      "params": {
+        "bands": [
+          { "type": "low_shelf",  "frequencyHz": 200,   "gainDb": 1,   "q": 0.7, "enabled": true },
+          { "type": "peak",       "frequencyHz": 250,   "gainDb": -2,  "q": 1.0, "enabled": true },
+          { "type": "peak",       "frequencyHz": 3000,  "gainDb": 2,   "q": 1.0, "enabled": true },
+          { "type": "peak",       "frequencyHz": 5000,  "gainDb": 1.5, "q": 1.2, "enabled": true },
+          { "type": "high_shelf", "frequencyHz": 10000, "gainDb": 2,   "q": 0.7, "enabled": true }
+        ]
+      }
+    },
+    "compressor":       { "enabled": true,  "params": { "thresholdDb": -22, "ratio": 3, "attackMs": 12, "releaseMs": 150, "kneeDb": 6, "makeupDb": 0, "autoMakeup": true, "detectorMs": 10 } },
+    "deEsser":          { "enabled": true,  "params": { "targetHz": 7000, "thresholdDb": -26, "amountDb": 5, "q": 1.5 } },
+    "limiter":          { "enabled": true,  "params": { "ceilingDb": -1, "releaseMs": 50, "lookaheadMs": 2 } },
+    "outputGain":       { "enabled": true,  "params": { "gainDb": 0 } }
+  }
+}

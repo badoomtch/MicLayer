@@ -1,0 +1,338 @@
+// Auto-tune wizard: three phases of recording, then plain-English
+// recommendations + apply-as-new-profile.
+
+import { useEffect, useRef, useState } from 'react';
+import { X, Mic, ChevronRight, CheckCircle2 } from 'lucide-react';
+
+import {
+  recordingStart,
+  recordingStop,
+  recordingDiscard,
+  type RecordingHandle,
+} from '../../ipc/recording';
+import { wizardAnalyze, wizardSynthesize, type PhaseStats } from '../../ipc/wizard';
+import { profileSave } from '../../ipc/profiles';
+import { useAppStore } from '../../state/useAppStore';
+
+type Phase = 'intro' | 'silence' | 'normal' | 'loud' | 'analyzing' | 'review' | 'saved';
+
+interface PhaseDef {
+  id: 'silence' | 'normal' | 'loud';
+  label: string;
+  prompt: string;
+  durationMs: number;
+}
+
+const PHASES: PhaseDef[] = [
+  {
+    id: 'silence',
+    label: 'Quiet room',
+    prompt: 'Stay completely silent. We need to hear your room.',
+    durationMs: 5_000,
+  },
+  {
+    id: 'normal',
+    label: 'Normal voice',
+    prompt: 'Speak as you normally would. Read this aloud, or say anything.',
+    durationMs: 8_000,
+  },
+  {
+    id: 'loud',
+    label: 'Loud voice',
+    prompt: 'Speak loudly — like you\'re excited or hyping up a stream.',
+    durationMs: 4_000,
+  },
+];
+
+interface AutoTuneWizardProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export function AutoTuneWizard({ open, onClose }: AutoTuneWizardProps) {
+  const engineRunning = useAppStore((s) => s.engine.status === 'running');
+  const setActiveProfile = useAppStore((s) => s.setActiveProfile);
+  const [phase, setPhase] = useState<Phase>('intro');
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [stats, setStats] = useState<Record<'silence' | 'normal' | 'loud', PhaseStats | null>>({
+    silence: null,
+    normal: null,
+    loud: null,
+  });
+  const [recs, setRecs] = useState<string[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [profileName, setProfileName] = useState('Auto-tune');
+  const handleRef = useRef<RecordingHandle | null>(null);
+  const tick = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setPhase('intro');
+    setStats({ silence: null, normal: null, loud: null });
+    setRecs(null);
+    setError(null);
+    setProfileName('Auto-tune');
+    setElapsedMs(0);
+  }, [open]);
+
+  useEffect(() => {
+    return () => {
+      if (tick.current !== null) window.clearInterval(tick.current);
+    };
+  }, []);
+
+  const runPhase = async (def: PhaseDef) => {
+    setError(null);
+    setElapsedMs(0);
+    setPhase(def.id);
+    try {
+      const h = await recordingStart();
+      handleRef.current = h;
+      const start = performance.now();
+      tick.current = window.setInterval(() => {
+        const el = performance.now() - start;
+        setElapsedMs(el);
+        if (el >= def.durationMs) {
+          if (tick.current !== null) {
+            window.clearInterval(tick.current);
+            tick.current = null;
+          }
+          finishPhase(def, h);
+        }
+      }, 80);
+    } catch (e) {
+      setError(String(e));
+      setPhase('intro');
+    }
+  };
+
+  const finishPhase = async (def: PhaseDef, h: RecordingHandle) => {
+    try {
+      const stopped = await recordingStop();
+      const rawPath = (stopped ?? h).raw_path;
+      const s = await wizardAnalyze(rawPath);
+      // Recordings created by the wizard are temporary — discard them now.
+      try {
+        await recordingDiscard(rawPath);
+      } catch (e) {
+        console.warn('wizard: discard failed', e);
+      }
+      const next = { ...stats, [def.id]: s };
+      setStats(next);
+      // Advance to next phase or analyze.
+      if (def.id === 'silence') {
+        await runPhase(PHASES[1]!);
+      } else if (def.id === 'normal') {
+        await runPhase(PHASES[2]!);
+      } else {
+        setPhase('analyzing');
+        if (next.silence && next.normal && next.loud) {
+          try {
+            const result = await wizardSynthesize(next.silence, next.normal, next.loud);
+            setRecs(result.recommendations);
+            // Apply suggested modules into the live engine state.
+            useAppStore.getState().setModules(result.modules);
+            setPhase('review');
+          } catch (e) {
+            setError(String(e));
+            setPhase('intro');
+          }
+        }
+      }
+    } catch (e) {
+      setError(String(e));
+      setPhase('intro');
+    }
+  };
+
+  const startWizard = async () => {
+    if (!engineRunning) {
+      setError('Start the audio engine on the Dashboard first.');
+      return;
+    }
+    await runPhase(PHASES[0]!);
+  };
+
+  const saveProfile = async () => {
+    const trimmed = profileName.trim() || 'Auto-tune';
+    const modules = useAppStore.getState().modules;
+    const profile = {
+      schemaVersion: 1 as const,
+      id: crypto.randomUUID(),
+      name: trimmed,
+      kind: 'user' as const,
+      author: 'Auto-tune',
+      notes: 'Generated by MicLayer auto-tune.',
+      modules,
+    };
+    try {
+      const saved = await profileSave(profile);
+      setActiveProfile(saved);
+      setPhase('saved');
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  if (!open) return null;
+
+  const activePhase = PHASES.find((p) => p.id === phase);
+  const progressPct =
+    activePhase && elapsedMs > 0
+      ? Math.min(100, (elapsedMs / activePhase.durationMs) * 100)
+      : 0;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm"
+    >
+      <div className="w-[640px] max-w-[92vw] rounded-card border border-surface/60 bg-surface p-6 shadow-xl">
+        <header className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-semibold">Auto-tune</h2>
+          {(phase === 'intro' || phase === 'review' || phase === 'saved') && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-pill p-1 text-muted hover:bg-bg hover:text-fg"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </header>
+
+        {error && (
+          <p className="mb-3 rounded-card border border-meterHigh/30 bg-meterHigh/10 p-3 text-xs text-meterHigh">
+            {error}
+          </p>
+        )}
+
+        {phase === 'intro' && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-fg">
+              MicLayer will listen for about 20 seconds across three phases and recommend
+              a starting tuning for your mic and room.
+            </p>
+            <ol className="text-sm text-muted">
+              {PHASES.map((p, i) => (
+                <li key={p.id} className="flex items-start gap-2 py-0.5">
+                  <span className="w-4 text-fg">{i + 1}.</span>
+                  <span>
+                    <span className="text-fg">{p.label}</span> — {p.prompt}
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <p className="text-xs text-muted">
+              Audio never leaves your computer. The samples are deleted as soon as analysis finishes.
+            </p>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={startWizard}
+                disabled={!engineRunning}
+                className={
+                  'inline-flex items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium ' +
+                  (engineRunning
+                    ? 'bg-accent/20 text-fg hover:bg-accent/30'
+                    : 'bg-bg text-muted cursor-not-allowed')
+                }
+              >
+                <Mic className="h-4 w-4" /> Start
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-pill border border-muted/30 px-3 py-2 text-xs text-muted hover:border-accent/60"
+              >
+                Cancel
+              </button>
+            </div>
+            {!engineRunning && (
+              <p className="text-xs text-meterMid">Start the audio engine from the Dashboard first.</p>
+            )}
+          </div>
+        )}
+
+        {activePhase && (phase === 'silence' || phase === 'normal' || phase === 'loud') && (
+          <div className="flex flex-col gap-3 py-2">
+            <div className="text-xs uppercase tracking-wide text-muted">
+              Phase {PHASES.findIndex((p) => p.id === activePhase.id) + 1} of {PHASES.length}
+            </div>
+            <div className="text-lg font-semibold text-fg">{activePhase.label}</div>
+            <p className="text-sm text-muted">{activePhase.prompt}</p>
+            <div className="text-3xl font-mono tabular-nums">
+              {((activePhase.durationMs - elapsedMs) / 1000).toFixed(1)}s
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-pill bg-bg">
+              <div
+                className="h-full bg-meterHigh transition-[width] duration-100"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {phase === 'analyzing' && (
+          <p className="text-sm text-muted">Analyzing…</p>
+        )}
+
+        {phase === 'review' && recs && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-fg">Done. Here's what I changed and why:</p>
+            <ul className="flex flex-col gap-2">
+              {recs.map((r, i) => (
+                <li
+                  key={i}
+                  className="flex items-start gap-2 rounded-card border border-surface/60 bg-bg p-3 text-xs"
+                >
+                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-meterLow" />
+                  <span className="text-fg">{r}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex items-center gap-2 pt-2">
+              <input
+                value={profileName}
+                onChange={(e) => setProfileName(e.target.value)}
+                placeholder="Name for the new profile"
+                className="flex-1 rounded-pill border border-muted/30 bg-bg px-3 py-1.5 text-sm text-fg focus:border-accent focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={saveProfile}
+                className="inline-flex items-center gap-1 rounded-pill bg-accent/20 px-4 py-1.5 text-sm text-fg hover:bg-accent/30"
+              >
+                Save as profile <ChevronRight className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {phase === 'saved' && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-fg">
+              <CheckCircle2 className="h-5 w-5 text-meterLow" />
+              <span>Profile saved and applied.</span>
+            </div>
+            <p className="text-xs text-muted">
+              Your new profile is now the active one. Talk into the mic — you should hear the difference
+              compared to the raw signal.
+            </p>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-pill bg-accent/20 px-4 py-1.5 text-sm text-fg hover:bg-accent/30"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

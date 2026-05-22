@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "11111111-0000-4000-8000-000000000005",
+  "name": "Discord",
+  "author": "MicLayer",
+  "kind": "builtin",
+  "notes": "For voice chat. Aggressive cleanup, tight gate so keyboard and breathing don't leak between sentences, presence boost for intelligibility on small speakers, hard safety limiter.",
+  "createdAt": "2026-05-22T00:00:00Z",
+  "updatedAt": "2026-05-22T00:00:00Z",
+  "modules": {
+    "inputGain":        { "enabled": true,  "params": { "gainDb": 2 } },
+    "highPass":         { "enabled": true,  "params": { "mode": "medium", "cutoffHz": 90, "order": 2 } },
+    "noiseSuppression": { "enabled": true,  "params": { "amount": 0.8, "voiceFloorDb": -42 } },
+    "gate":             { "enabled": true,  "params": { "thresholdDb": -45, "rangeDb": -40, "attackMs": 3, "holdMs": 120, "releaseMs": 250, "hysteresisDb": 3 } },
+    "eq": {
+      "enabled": true,
+      "params": {
+        "bands": [
+          { "type": "low_shelf",  "frequencyHz": 200,   "gainDb": 0,   "q": 0.7, "enabled": true },
+          { "type": "peak",       "frequencyHz": 300,   "gainDb": -3,  "q": 1.0, "enabled": true },
+          { "type": "peak",       "frequencyHz": 3200,  "gainDb": 3,   "q": 1.0, "enabled": true },
+          { "type": "peak",       "frequencyHz": 5500,  "gainDb": 2,   "q": 1.2, "enabled": true },
+          { "type": "high_shelf", "frequencyHz": 10000, "gainDb": 1.5, "q": 0.7, "enabled": true }
+        ]
+      }
+    },
+    "compressor":       { "enabled": true,  "params": { "thresholdDb": -24, "ratio": 4, "attackMs": 8, "releaseMs": 120, "kneeDb": 4, "makeupDb": 2, "autoMakeup": true, "detectorMs": 8 } },
+    "deEsser":          { "enabled": true,  "params": { "targetHz": 7000, "thresholdDb": -26, "amountDb": 5, "q": 1.5 } },
+    "limiter":          { "enabled": true,  "params": { "ceilingDb": -1, "releaseMs": 40, "lookaheadMs": 2 } },
+    "outputGain":       { "enabled": true,  "params": { "gainDb": 0 } }
+  }
+}

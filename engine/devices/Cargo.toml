@@ -1,0 +1,15 @@
+# SCAFFOLD: Windows audio device enumeration. Milestone 2.
+
+[package]
+name = "miclayer-devices"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cpal.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

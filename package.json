@@ -1,0 +1,34 @@
+{
+  "name": "miclayer",
+  "version": "0.0.0",
+  "private": true,
+  "description": "MicLayer — free, open-source microphone tuning app for Windows. Mic in → tuning chain → branded virtual microphone.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --filter @miclayer/desktop dev",
+    "build": "pnpm --filter @miclayer/desktop build",
+    "tauri": "pnpm --filter @miclayer/desktop tauri",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "prettier": "^3.2.0"
+  },
+  "prettier": {
+    "semi": true,
+    "singleQuote": true,
+    "trailingComma": "all",
+    "printWidth": 100
+  }
+}

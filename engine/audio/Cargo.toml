@@ -1,0 +1,26 @@
+# Audio engine crate.
+
+[package]
+name = "miclayer-audio"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+miclayer-dsp = { path = "../dsp" }
+miclayer-devices = { path = "../devices" }
+miclayer-virtual-mic = { path = "../virtual-mic" }
+
+cpal.workspace = true
+rtrb.workspace = true
+triple_buffer.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+rubato.workspace = true
+uuid.workspace = true
+hound.workspace = true

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "11111111-0000-4000-8000-000000000003",
+  "name": "Podcast",
+  "author": "MicLayer",
+  "kind": "builtin",
+  "notes": "Warmer, smoother voice for long-form recording. Gentler compression, light high-end air, no aggressive cleanup. Pair with a quiet room.",
+  "createdAt": "2026-05-22T00:00:00Z",
+  "updatedAt": "2026-05-22T00:00:00Z",
+  "modules": {
+    "inputGain":        { "enabled": true,  "params": { "gainDb": 0 } },
+    "highPass":         { "enabled": true,  "params": { "mode": "low", "cutoffHz": 70, "order": 2 } },
+    "noiseSuppression": { "enabled": true,  "params": { "amount": 0.3, "voiceFloorDb": -50 } },
+    "gate":             { "enabled": false, "params": { "thresholdDb": -55, "rangeDb": -20, "attackMs": 5, "holdMs": 150, "releaseMs": 300, "hysteresisDb": 3 } },
+    "eq": {
+      "enabled": true,
+      "params": {
+        "bands": [
+          { "type": "low_shelf",  "frequencyHz": 180,   "gainDb": 2,   "q": 0.7, "enabled": true },
+          { "type": "peak",       "frequencyHz": 350,   "gainDb": -1.5,"q": 1.0, "enabled": true },
+          { "type": "peak",       "frequencyHz": 2800,  "gainDb": 1,   "q": 1.0, "enabled": true },
+          { "type": "peak",       "frequencyHz": 5000,  "gainDb": 0.5, "q": 1.2, "enabled": true },
+          { "type": "high_shelf", "frequencyHz": 11000, "gainDb": 1.5, "q": 0.7, "enabled": true }
+        ]
+      }
+    },
+    "compressor":       { "enabled": true,  "params": { "thresholdDb": -20, "ratio": 2.5, "attackMs": 20, "releaseMs": 200, "kneeDb": 8, "makeupDb": 0, "autoMakeup": true, "detectorMs": 15 } },
+    "deEsser":          { "enabled": true,  "params": { "targetHz": 7500, "thresholdDb": -28, "amountDb": 4, "q": 1.5 } },
+    "limiter":          { "enabled": true,  "params": { "ceilingDb": -1.5, "releaseMs": 80, "lookaheadMs": 2 } },
+    "outputGain":       { "enabled": true,  "params": { "gainDb": 0 } }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "11111111-0000-4000-8000-000000000007",
+  "name": "Late Night",
+  "author": "MicLayer",
+  "kind": "builtin",
+  "notes": "Calm, soft tuning for late-night calls or streams. Lower input level, gentle compression, slight high-end roll-off so harsh frequencies don't punch through. Pair with a sensible output level on the receiver's side.",
+  "createdAt": "2026-05-22T00:00:00Z",
+  "updatedAt": "2026-05-22T00:00:00Z",
+  "modules": {
+    "inputGain":        { "enabled": true,  "params": { "gainDb": -2 } },
+    "highPass":         { "enabled": true,  "params": { "mode": "low", "cutoffHz": 60, "order": 2 } },
+    "noiseSuppression": { "enabled": true,  "params": { "amount": 0.4, "voiceFloorDb": -50 } },
+    "gate":             { "enabled": true,  "params": { "thresholdDb": -50, "rangeDb": -25, "attackMs": 8, "holdMs": 200, "releaseMs": 400, "hysteresisDb": 3 } },
+    "eq": {
+      "enabled": true,
+      "params": {
+        "bands": [
+          { "type": "low_shelf",  "frequencyHz": 180,   "gainDb": 2,    "q": 0.7, "enabled": true },
+          { "type": "peak",       "frequencyHz": 350,   "gainDb": -1,   "q": 1.0, "enabled": true },
+          { "type": "peak",       "frequencyHz": 2500,  "gainDb": 0.5,  "q": 1.0, "enabled": true },
+          { "type": "peak",       "frequencyHz": 5000,  "gainDb": -1,   "q": 1.2, "enabled": true },
+          { "type": "high_shelf", "frequencyHz": 9000,  "gainDb": -2,   "q": 0.7, "enabled": true }
+        ]
+      }
+    },
+    "compressor":       { "enabled": true,  "params": { "thresholdDb": -20, "ratio": 2, "attackMs": 25, "releaseMs": 250, "kneeDb": 8, "makeupDb": 0, "autoMakeup": true, "detectorMs": 15 } },
+    "deEsser":          { "enabled": true,  "params": { "targetHz": 6500, "thresholdDb": -28, "amountDb": 5, "q": 1.5 } },
+    "limiter":          { "enabled": true,  "params": { "ceilingDb": -2, "releaseMs": 80, "lookaheadMs": 2 } },
+    "outputGain":       { "enabled": true,  "params": { "gainDb": -2 } }
+  }
+}

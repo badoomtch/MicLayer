@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "11111111-0000-4000-8000-000000000010",
+  "name": "Radio Style",
+  "author": "MicLayer",
+  "kind": "builtin",
+  "notes": "Classic broadcast feel: scooped mids, generous low-end body, lifted high-end, and heavier compression for that constant 'on-air' loudness. Best with a good mic and reasonably treated room.",
+  "createdAt": "2026-05-22T00:00:00Z",
+  "updatedAt": "2026-05-22T00:00:00Z",
+  "modules": {
+    "inputGain":        { "enabled": true,  "params": { "gainDb": 0 } },
+    "highPass":         { "enabled": true,  "params": { "mode": "low", "cutoffHz": 60, "order": 2 } },
+    "noiseSuppression": { "enabled": true,  "params": { "amount": 0.4, "voiceFloorDb": -48 } },
+    "gate":             { "enabled": true,  "params": { "thresholdDb": -48, "rangeDb": -25, "attackMs": 5, "holdMs": 200, "releaseMs": 300, "hysteresisDb": 3 } },
+    "eq": {
+      "enabled": true,
+      "params": {
+        "bands": [
+          { "type": "low_shelf",  "frequencyHz": 160,   "gainDb": 4,    "q": 0.7, "enabled": true },
+          { "type": "peak",       "frequencyHz": 700,   "gainDb": -3,   "q": 1.2, "enabled": true },
+          { "type": "peak",       "frequencyHz": 2500,  "gainDb": 1,    "q": 1.0, "enabled": true },
+          { "type": "peak",       "frequencyHz": 5500,  "gainDb": 3,    "q": 1.2, "enabled": true },
+          { "type": "high_shelf", "frequencyHz": 12000, "gainDb": 4,    "q": 0.7, "enabled": true }
+        ]
+      }
+    },
+    "compressor":       { "enabled": true,  "params": { "thresholdDb": -26, "ratio": 5, "attackMs": 6, "releaseMs": 100, "kneeDb": 3, "makeupDb": 3, "autoMakeup": true, "detectorMs": 8 } },
+    "deEsser":          { "enabled": true,  "params": { "targetHz": 6500, "thresholdDb": -26, "amountDb": 7, "q": 1.5 } },
+    "limiter":          { "enabled": true,  "params": { "ceilingDb": -1, "releaseMs": 40, "lookaheadMs": 2 } },
+    "outputGain":       { "enabled": true,  "params": { "gainDb": 0 } }
+  }
+}

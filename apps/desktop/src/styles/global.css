@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme tokens. ThemeProvider sets data-theme on <html>. */
+
+:root,
+:root[data-theme='dark'] {
+  --ml-bg: #101113;
+  --ml-surface: #181a1d;
+  --ml-fg: #e6e8eb;
+  --ml-muted: #8a8f97;
+  --ml-accent: #7aa2f7;
+  --ml-meter-low: #4ec9b0;
+  --ml-meter-mid: #d7ba7d;
+  --ml-meter-high: #d16969;
+}
+
+:root[data-theme='medium'] {
+  --ml-bg: #1e2127;
+  --ml-surface: #272a31;
+  --ml-fg: #dfe2e7;
+  --ml-muted: #98a0aa;
+  --ml-accent: #7aa2f7;
+  --ml-meter-low: #4ec9b0;
+  --ml-meter-mid: #d7ba7d;
+  --ml-meter-high: #d16969;
+}
+
+:root[data-theme='light'] {
+  --ml-bg: #f7f8fa;
+  --ml-surface: #ffffff;
+  --ml-fg: #1c1f24;
+  --ml-muted: #6b7280;
+  --ml-accent: #3b6bd1;
+  --ml-meter-low: #2da884;
+  --ml-meter-mid: #b88a2a;
+  --ml-meter-high: #b94a4a;
+}
+
+html,
+body {
+  background: var(--ml-bg);
+  color: var(--ml-fg);
+  font-family: 'Inter', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--ml-accent);
+  outline-offset: 2px;
+}

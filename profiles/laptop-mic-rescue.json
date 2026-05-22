@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "11111111-0000-4000-8000-000000000009",
+  "name": "Laptop Mic Rescue",
+  "author": "MicLayer",
+  "kind": "builtin",
+  "notes": "For built-in laptop mics. Hard high-pass cuts keyboard rumble, aggressive noise suppression handles fan noise, EQ adds the body and clarity laptop mics famously lack. Won't make a laptop sound like a Shure SM7B, but it will make calls noticeably better.",
+  "createdAt": "2026-05-22T00:00:00Z",
+  "updatedAt": "2026-05-22T00:00:00Z",
+  "modules": {
+    "inputGain":        { "enabled": true,  "params": { "gainDb": 4 } },
+    "highPass":         { "enabled": true,  "params": { "mode": "strong", "cutoffHz": 140, "order": 4 } },
+    "noiseSuppression": { "enabled": true,  "params": { "amount": 0.9, "voiceFloorDb": -42 } },
+    "gate":             { "enabled": true,  "params": { "thresholdDb": -44, "rangeDb": -35, "attackMs": 3, "holdMs": 180, "releaseMs": 280, "hysteresisDb": 4 } },
+    "eq": {
+      "enabled": true,
+      "params": {
+        "bands": [
+          { "type": "low_shelf",  "frequencyHz": 220,   "gainDb": 4,    "q": 0.7, "enabled": true },
+          { "type": "peak",       "frequencyHz": 500,   "gainDb": -3,   "q": 1.5, "enabled": true },
+          { "type": "peak",       "frequencyHz": 3000,  "gainDb": 2.5,  "q": 1.0, "enabled": true },
+          { "type": "peak",       "frequencyHz": 5500,  "gainDb": 2,    "q": 1.2, "enabled": true },
+          { "type": "high_shelf", "frequencyHz": 11000, "gainDb": 3,    "q": 0.7, "enabled": true }
+        ]
+      }
+    },
+    "compressor":       { "enabled": true,  "params": { "thresholdDb": -24, "ratio": 4, "attackMs": 10, "releaseMs": 130, "kneeDb": 5, "makeupDb": 2, "autoMakeup": true, "detectorMs": 10 } },
+    "deEsser":          { "enabled": true,  "params": { "targetHz": 6500, "thresholdDb": -26, "amountDb": 6, "q": 1.5 } },
+    "limiter":          { "enabled": true,  "params": { "ceilingDb": -1, "releaseMs": 50, "lookaheadMs": 2 } },
+    "outputGain":       { "enabled": true,  "params": { "gainDb": 0 } }
+  }
+}

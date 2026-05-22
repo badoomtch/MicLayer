@@ -1,0 +1,50 @@
+# Node / pnpm
+node_modules/
+.pnpm-store/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Rust / Cargo
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Tauri
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/WixTools/
+
+# IDE / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.recommended.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs / diagnostics
+*.log
+logs/
+diagnostics-bundle-*.zip
+
+# User-specific MicLayer data (these live in %APPDATA%\MicLayer in production,
+# but during dev they may land in the repo root — never commit them)
+miclayer-data/
+test-recordings/
+user-profiles/
+
+# Build / installer
+installer/build/
+installer/output/
+*.msi
+*.exe
+*.zip
+!docs/**/*.zip
+
+# Environment
+.env
+.env.*
+!.env.example

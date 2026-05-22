@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "11111111-0000-4000-8000-000000000001",
+  "name": "Natural",
+  "author": "MicLayer",
+  "kind": "builtin",
+  "notes": "Minimal processing. Gentle high-pass to remove rumble, light limiter for safety. Use this when your mic and room are already in good shape and you just want a clean signal.",
+  "createdAt": "2026-05-22T00:00:00Z",
+  "updatedAt": "2026-05-22T00:00:00Z",
+  "modules": {
+    "inputGain":        { "enabled": true,  "params": { "gainDb": 0 } },
+    "highPass":         { "enabled": true,  "params": { "mode": "low", "cutoffHz": 60, "order": 2 } },
+    "noiseSuppression": { "enabled": false, "params": { "amount": 0.3, "voiceFloorDb": -45 } },
+    "gate":             { "enabled": false, "params": { "thresholdDb": -55, "rangeDb": -20, "attackMs": 5, "holdMs": 100, "releaseMs": 200, "hysteresisDb": 3 } },
+    "eq": {
+      "enabled": true,
+      "params": {
+        "bands": [
+          { "type": "low_shelf",  "frequencyHz": 200,   "gainDb": 0,   "q": 0.7, "enabled": false },
+          { "type": "peak",       "frequencyHz": 250,   "gainDb": 0,   "q": 1.0, "enabled": false },
+          { "type": "peak",       "frequencyHz": 3000,  "gainDb": 0,   "q": 1.0, "enabled": false },
+          { "type": "peak",       "frequencyHz": 5000,  "gainDb": 0,   "q": 1.2, "enabled": false },
+          { "type": "high_shelf", "frequencyHz": 10000, "gainDb": 0,   "q": 0.7, "enabled": false }
+        ]
+      }
+    },
+    "compressor":       { "enabled": true,  "params": { "thresholdDb": -22, "ratio": 2, "attackMs": 20, "releaseMs": 200, "kneeDb": 6, "makeupDb": 0, "autoMakeup": true, "detectorMs": 10 } },
+    "deEsser":          { "enabled": false, "params": { "targetHz": 7000, "thresholdDb": -26, "amountDb": 4, "q": 1.5 } },
+    "limiter":          { "enabled": true,  "params": { "ceilingDb": -1, "releaseMs": 50, "lookaheadMs": 2 } },
+    "outputGain":       { "enabled": true,  "params": { "gainDb": 0 } }
+  }
+}
