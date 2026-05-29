@@ -4,7 +4,7 @@
 import { useEffect } from 'react';
 
 import { onEngineEvent } from '../ipc/events';
-import { engineListDevices, engineSnapshot } from '../ipc/commands';
+import { engineListDevices, engineSelectInput, engineSnapshot } from '../ipc/commands';
 import { useAppStore } from './useAppStore';
 
 export function useEngineBridge() {
@@ -22,7 +22,27 @@ export function useEngineBridge() {
           useAppStore.getState().setSelectedDeviceId(snap.selectedDeviceId);
         }
         const devices = await engineListDevices();
-        if (!cancelled) useAppStore.getState().setDevices(devices);
+        if (!cancelled) {
+          useAppStore.getState().setDevices(devices);
+          // If nothing was previously selected, auto-pick the Windows
+          // default communications device. Without this, Start engine
+          // stays disabled because the controller has no input chosen,
+          // and the user has to manually open the device dropdown to
+          // unstick it.
+          const current = useAppStore.getState().engine.selectedDeviceId;
+          if (!current) {
+            const fallback =
+              devices.find((d) => d.is_default_communications) ?? devices[0];
+            if (fallback) {
+              try {
+                await engineSelectInput(fallback.id);
+                useAppStore.getState().setSelectedDeviceId(fallback.id);
+              } catch (e) {
+                console.error('auto-select default device failed', e);
+              }
+            }
+          }
+        }
       } catch (err) {
         console.error('initial engine bridge sync failed', err);
       }
