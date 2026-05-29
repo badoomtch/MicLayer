@@ -13,7 +13,7 @@ import { Slider } from '../../shared/Slider';
 import { engineStart } from '../../ipc/commands';
 import { engineSinkStatus, VB_CABLE_DOWNLOAD_URL, type SinkStatus } from '../../ipc/sink';
 import { vbcableInstall, onVbCableProgress, type InstallProgress } from '../../ipc/vbcable';
-import { profileSave, type Profile } from '../../ipc/profiles';
+import { profileApply, profileSave, type Profile } from '../../ipc/profiles';
 import { useProfilesBridge } from '../../state/useProfilesBridge';
 import { RecordTestModal } from '../recorder/RecordTestModal';
 import { AutoTuneWizard } from '../wizard/AutoTuneWizard';
@@ -92,8 +92,11 @@ export function Dashboard() {
     };
     try {
       const saved = await profileSave(profile);
+      // Mark active on the Rust side. See onSaveTweaks / wizard for the
+      // same rationale — profile_save alone leaves the active id stale.
+      const applied = await profileApply(saved.id);
       await refreshProfiles();
-      setActiveProfile(saved);
+      setActiveProfile(applied);
     } catch (e) {
       console.error(e);
       window.alert(`Couldn't save: ${e}`);

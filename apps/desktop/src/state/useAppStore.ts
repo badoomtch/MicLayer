@@ -43,6 +43,12 @@ export interface EngineSnapshotState {
   /// Cleared when the engine successfully transitions to running, or
   /// when the user dismisses it via the Dashboard banner.
   lastStartError: string | null;
+  /// True once useEngineBridge has acknowledged the selected input
+  /// device on the Rust side (snapshot ⇒ list devices ⇒ select_input).
+  /// The autostart hook waits for this so it doesn't race against
+  /// the bridge on cold start — engine_start needs the controller's
+  /// selected_device_id to be set, otherwise it returns InputNoDevice.
+  bridgeReady: boolean;
   meters: Meters;
 }
 
@@ -73,6 +79,7 @@ export interface AppState {
   setMeters: (m: Meters) => void;
   setLastErrorId: (id: string | null) => void;
   setLastStartError: (msg: string | null) => void;
+  setBridgeReady: (ready: boolean) => void;
 
   setModules: (m: ProfileModules) => void;
   updateModule: <K extends keyof ProfileModules>(key: K, value: ProfileModules[K]) => void;
@@ -109,6 +116,7 @@ export const useAppStore = create<AppState>()(
         sinkBackend: null,
         lastErrorId: null,
         lastStartError: null,
+        bridgeReady: false,
         meters: SILENT_METERS,
       },
       devices: [],
@@ -137,6 +145,8 @@ export const useAppStore = create<AppState>()(
         set((s) => ({ engine: { ...s.engine, lastErrorId } })),
       setLastStartError: (lastStartError) =>
         set((s) => ({ engine: { ...s.engine, lastStartError } })),
+      setBridgeReady: (bridgeReady) =>
+        set((s) => ({ engine: { ...s.engine, bridgeReady } })),
 
       setModules: (modules) => set({ modules }),
       updateModule: (key, value) =>
@@ -183,6 +193,7 @@ export const useAppStore = create<AppState>()(
           sinkBackend: null,
           lastErrorId: null,
           lastStartError: null,
+          bridgeReady: false,
           meters: SILENT_METERS,
         },
         // Modules persist so the user's tweaks survive an app restart

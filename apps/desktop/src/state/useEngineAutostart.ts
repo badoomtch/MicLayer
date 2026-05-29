@@ -19,6 +19,7 @@ export function useEngineAutostart() {
   const status = useAppStore((s) => s.engine.status);
   const deviceId = useAppStore((s) => s.engine.selectedDeviceId);
   const lastStartError = useAppStore((s) => s.engine.lastStartError);
+  const bridgeReady = useAppStore((s) => s.engine.bridgeReady);
   // The hook does not subscribe to action references — pulled via getState.
 
   // Token so we don't fire multiple overlapping engineStart calls when
@@ -27,6 +28,13 @@ export function useEngineAutostart() {
   const inflight = useRef(false);
 
   useEffect(() => {
+    // Wait for useEngineBridge to finish its initial snapshot + device
+    // selection + select_input. Without this gate we race the bridge
+    // and engine_start is called before the Rust controller knows
+    // which input device to use → InputNoDevice fault and a
+    // misleading "Engine couldn't start" banner that goes away on
+    // manual retry. See useEngineBridge for where this flips to true.
+    if (!bridgeReady) return;
     // Already running, or transitioning — nothing to do.
     if (status === 'running' || status === 'starting' || status === 'stopping') return;
     // No mic — DeviceSelector will let the user pick one, then this
@@ -51,5 +59,5 @@ export function useEngineAutostart() {
         inflight.current = false;
       }
     })();
-  }, [status, deviceId, lastStartError]);
+  }, [status, deviceId, lastStartError, bridgeReady]);
 }

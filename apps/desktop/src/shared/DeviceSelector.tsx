@@ -31,10 +31,14 @@ export function DeviceSelector() {
   };
 
   const pick = async (id: string) => {
-    setSelectedDeviceId(id);
     setOpen(false);
+    // Notify the engine controller first, THEN flip the store — same
+    // race as cold-start autostart: if the store updates first, the
+    // reactive autostart hook can see a new device and fire engine_start
+    // before the controller knows about it.
     try {
       await engineSelectInput(id);
+      setSelectedDeviceId(id);
     } catch (e) {
       console.error('engine_select_input failed', e);
     }

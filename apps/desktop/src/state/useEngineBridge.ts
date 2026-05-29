@@ -74,6 +74,16 @@ export function useEngineBridge() {
         }
       } catch (err) {
         console.error('initial engine bridge sync failed', err);
+      } finally {
+        // Tell the autostart hook the engine controller has been told
+        // about our selected input (or that we tried). Without this
+        // gate the autostart hook fires immediately on mount and races
+        // engine_select_input — engine_start hits the Rust side before
+        // selected_device_id is set, returning InputNoDevice, and the
+        // user sees a misleading "Engine couldn't start" banner.
+        if (!cancelled) {
+          useAppStore.getState().setBridgeReady(true);
+        }
       }
 
       const off = await onEngineEvent((event) => {

@@ -121,9 +121,14 @@ export function Profiles() {
     };
     try {
       const saved = await profileSave(profile);
+      // Mark active on the Rust side too — profile_save only writes to
+      // disk. Without profile_apply the engine's active_profile_id
+      // would stay on the previous profile and a subsequent refresh
+      // would pull that stale id back into the store.
+      const applied = await profileApply(saved.id);
       await refresh();
-      setSelectedId(saved.id);
-      setActiveProfile(saved);
+      setSelectedId(applied.id);
+      setActiveProfile(applied);
     } catch (e) {
       console.error(e);
     }

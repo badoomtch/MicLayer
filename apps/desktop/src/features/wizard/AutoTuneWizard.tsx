@@ -12,8 +12,9 @@ import {
   type RecordingHandle,
 } from '../../ipc/recording';
 import { wizardAnalyze, wizardSynthesize, type PhaseStats } from '../../ipc/wizard';
-import { profileSave } from '../../ipc/profiles';
+import { profileApply, profileSave } from '../../ipc/profiles';
 import { useAppStore } from '../../state/useAppStore';
+import { useProfilesBridge } from '../../state/useProfilesBridge';
 
 type Step = 'intro' | 'silence' | 'normal' | 'loud' | 'analyzing' | 'review' | 'saved';
 
@@ -53,6 +54,7 @@ interface Props {
 }
 
 export function AutoTuneWizard({ open, onClose }: Props) {
+  const refreshProfiles = useProfilesBridge();
   const engineRunning = useAppStore((s) => s.engine.status === 'running');
   const setActiveProfile = useAppStore((s) => s.setActiveProfile);
   const [step, setStep] = useState<Step>('intro');
@@ -172,7 +174,20 @@ export function AutoTuneWizard({ open, onClose }: Props) {
     };
     try {
       const saved = await profileSave(profile);
-      setActiveProfile(saved);
+      // Mark the new profile active on the Rust side too. profile_save
+      // only writes to disk — without profile_apply the engine
+      // controller's active_profile_id stays on the previous profile,
+      // and any subsequent refreshProfiles() (e.g. on next launch)
+      // would pull that stale id back into the JS store and the
+      // picker would jump away from the auto-tune profile. profile_apply
+      // also re-pushes modules to the engine, idempotent with the
+      // useProfileSync debounce.
+      const applied = await profileApply(saved.id);
+      // Refresh listing so the new profile appears in the Profiles
+      // page and is findable by ProfilePicker via
+      // `[...builtins, ...users].find(p => p.id === activeProfileId)`.
+      await refreshProfiles();
+      setActiveProfile(applied);
       setStep('saved');
     } catch (e) {
       setError(String(e));
