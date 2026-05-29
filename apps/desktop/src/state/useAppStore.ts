@@ -39,6 +39,10 @@ export interface EngineSnapshotState {
   activeProfileName: string;
   sinkBackend: 'vb-cable' | 'miclayer-wdm' | null;
   lastErrorId: string | null;
+  /// Human-readable error from the most recent engine_start attempt.
+  /// Cleared when the engine successfully transitions to running, or
+  /// when the user dismisses it via the Dashboard banner.
+  lastStartError: string | null;
   meters: Meters;
 }
 
@@ -68,6 +72,7 @@ export interface AppState {
   setEngineStatus: (s: EngineStatusValue) => void;
   setMeters: (m: Meters) => void;
   setLastErrorId: (id: string | null) => void;
+  setLastStartError: (msg: string | null) => void;
 
   setModules: (m: ProfileModules) => void;
   updateModule: <K extends keyof ProfileModules>(key: K, value: ProfileModules[K]) => void;
@@ -103,6 +108,7 @@ export const useAppStore = create<AppState>()(
         activeProfileName: 'Natural',
         sinkBackend: null,
         lastErrorId: null,
+        lastStartError: null,
         meters: SILENT_METERS,
       },
       devices: [],
@@ -129,6 +135,8 @@ export const useAppStore = create<AppState>()(
       setMeters: (meters) => set((s) => ({ engine: { ...s.engine, meters } })),
       setLastErrorId: (lastErrorId) =>
         set((s) => ({ engine: { ...s.engine, lastErrorId } })),
+      setLastStartError: (lastStartError) =>
+        set((s) => ({ engine: { ...s.engine, lastStartError } })),
 
       setModules: (modules) => set({ modules }),
       updateModule: (key, value) =>
@@ -174,6 +182,7 @@ export const useAppStore = create<AppState>()(
           activeProfileName: s.engine.activeProfileName,
           sinkBackend: null,
           lastErrorId: null,
+          lastStartError: null,
           meters: SILENT_METERS,
         },
         // Modules persist so the user's tweaks survive an app restart

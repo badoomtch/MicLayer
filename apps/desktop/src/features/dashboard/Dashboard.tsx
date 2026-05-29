@@ -3,13 +3,14 @@
 // → big meters card → quick controls.
 
 import { useEffect, useState } from 'react';
-import { Sparkles, AlertTriangle, ExternalLink, Download, Save, Plus } from 'lucide-react';
+import { Sparkles, AlertTriangle, ExternalLink, Download, Save, Plus, RefreshCw } from 'lucide-react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 import { useAppStore } from '../../state/useAppStore';
 import { LevelMeter } from '../../shared/LevelMeter';
 import { DeviceSelector } from '../../shared/DeviceSelector';
 import { Slider } from '../../shared/Slider';
+import { engineStart } from '../../ipc/commands';
 import { engineSinkStatus, VB_CABLE_DOWNLOAD_URL, type SinkStatus } from '../../ipc/sink';
 import { vbcableInstall, onVbCableProgress, type InstallProgress } from '../../ipc/vbcable';
 import { profileSave, type Profile } from '../../ipc/profiles';
@@ -48,6 +49,20 @@ export function Dashboard() {
   }, [engine.status]);
 
   const running = engine.status === 'running' || engine.status === 'starting';
+  const startError = engine.lastStartError;
+
+  const onRetryStart = async () => {
+    // Clear the banner first so the autostart hook is free to fire on
+    // the next render. If the call below also throws, the autostart
+    // hook will pick up that fresh error.
+    useAppStore.getState().setLastStartError(null);
+    try {
+      await engineStart();
+    } catch (e) {
+      const msg = typeof e === 'string' ? e : e instanceof Error ? e.message : String(e);
+      useAppStore.getState().setLastStartError(msg);
+    }
+  };
 
   const activeProfile = [...builtins, ...users].find((p) => p.id === activeProfileId);
   const canSaveInPlace = dirty && activeProfile && activeProfile.kind === 'user';
@@ -142,6 +157,47 @@ export function Dashboard() {
           </button>
         </div>
       </div>
+
+      {startError && (
+        <div
+          className="ml-card"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '12px 16px',
+            marginBottom: 12,
+            background: 'color-mix(in oklch, var(--ml-bad) 8%, var(--ml-surface))',
+            border: '1px solid color-mix(in oklch, var(--ml-bad) 35%, transparent)',
+          }}
+        >
+          <AlertTriangle size={16} style={{ color: 'var(--ml-bad)', flex: '0 0 16px' }} />
+          <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ml-fg)' }}>
+              Engine couldn't start
+            </div>
+            <div
+              style={{
+                fontSize: 11.5,
+                color: 'var(--ml-fg-muted)',
+                marginTop: 2,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {startError}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="ml-btn"
+            onClick={onRetryStart}
+            style={{ flex: '0 0 auto' }}
+          >
+            <RefreshCw size={12} /> Retry
+          </button>
+        </div>
+      )}
 
       <div
         style={{
@@ -376,7 +432,7 @@ function SinkStatusBlock({ sink, engineRunning }: { sink: SinkStatus | null; eng
           <AlertTriangle size={11} /> Sink closed
         </span>
         <span style={{ fontSize: 11.5, color: 'var(--ml-fg-muted)' }}>
-          {engineRunning ? 'restart engine' : 'start the engine'}
+          {engineRunning ? 'reconnecting…' : 'waiting for engine'}
         </span>
       </div>
     );

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 import { useAppStore, type SectionId } from '../state/useAppStore';
-import { engineSetMuted, engineSetRaw } from '../ipc/commands';
+import { engineSetMuted, engineSetRaw, engineStart } from '../ipc/commands';
 import { SegmentedToggle } from '../shared/SegmentedToggle';
 import { ProfilePicker } from '../shared/ProfilePicker';
 
@@ -63,6 +63,20 @@ export function Sidebar() {
     }
   };
 
+  // Engine pill is clickable when stopped/faulted — manual recovery path
+  // if the reactive autostart hit an error the user acknowledged.
+  const canManualStart = status === 'stopped' || status === 'faulted';
+  const onPillClick = async () => {
+    if (!canManualStart) return;
+    useAppStore.getState().setLastStartError(null);
+    try {
+      await engineStart();
+    } catch (e) {
+      const msg = typeof e === 'string' ? e : e instanceof Error ? e.message : String(e);
+      useAppStore.getState().setLastStartError(msg);
+    }
+  };
+
   return (
     <nav className="ml-sidebar">
       <div style={{ marginBottom: 10 }}>
@@ -110,12 +124,28 @@ export function Sidebar() {
             padding: '0 4px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <button
+            type="button"
+            onClick={onPillClick}
+            disabled={!canManualStart}
+            title={canManualStart ? 'Click to start the engine' : 'Engine status'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              background: 'transparent',
+              border: 0,
+              padding: 0,
+              font: 'inherit',
+              color: 'inherit',
+              cursor: canManualStart ? 'pointer' : 'default',
+            }}
+          >
             <span className="ml-dot" style={{ background: `var(${eng.varName})` }} />
             <span style={{ fontSize: 11.5, color: 'var(--ml-fg-muted)', fontWeight: 500 }}>
               {eng.label}
             </span>
-          </div>
+          </button>
           <button
             type="button"
             onClick={() => toggleMute(!muted)}

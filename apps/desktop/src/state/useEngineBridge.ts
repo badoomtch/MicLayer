@@ -8,7 +8,6 @@ import {
   engineListDevices,
   engineSelectInput,
   engineSnapshot,
-  engineStart,
 } from '../ipc/commands';
 import { useAppStore } from './useAppStore';
 
@@ -24,18 +23,28 @@ export function useEngineBridge() {
         const snap = await engineSnapshot();
         if (!cancelled) {
           useAppStore.getState().setEngineStatus(snap.state);
-          useAppStore.getState().setSelectedDeviceId(snap.selectedDeviceId);
+          // Only overwrite the persisted selectedDeviceId when the engine
+          // actually has one. On cold start the controller is fresh
+          // (selected_device_id = null) but the store may have a
+          // persisted value from the previous session — we want to keep
+          // it and re-assert it on the engine side below.
+          if (snap.selectedDeviceId) {
+            useAppStore.getState().setSelectedDeviceId(snap.selectedDeviceId);
+          }
         }
         const devices = await engineListDevices();
         if (!cancelled) {
           useAppStore.getState().setDevices(devices);
-          // If nothing was previously selected, auto-pick the Windows
-          // default communications device. Without this, Start engine
-          // stays disabled because the controller has no input chosen,
-          // and the user has to manually open the device dropdown to
-          // unstick it.
+          // Pick a default mic if nothing is selected yet, OR if the
+          // persisted selection no longer exists (different machine,
+          // mic unplugged). Without this the engine sits in "no input"
+          // forever and engine_start returns InputNoDevice. The
+          // reactive autostart hook then picks up the new selectedDeviceId.
           const current = useAppStore.getState().engine.selectedDeviceId;
-          if (!current) {
+          const currentStillExists = current
+            ? devices.some((d) => d.id === current)
+            : false;
+          if (!current || !currentStillExists) {
             const fallback =
               devices.find((d) => d.is_default_communications) ?? devices[0];
             if (fallback) {
@@ -45,21 +54,21 @@ export function useEngineBridge() {
               } catch (e) {
                 console.error('auto-select default device failed', e);
               }
+            } else if (current && !currentStillExists) {
+              // Clear the stale selection so the autostart hook stops
+              // trying to use a device that isn't here.
+              useAppStore.getState().setSelectedDeviceId(null);
             }
-          }
-
-          // Auto-start the engine when there's a selected device and nothing
-          // is already running. This removes the Start/Stop button from the
-          // UI — the app being open is the user's intent. They can pause
-          // audio with the mute button in the sidebar, and the engine
-          // shuts down naturally when the app actually quits.
-          const status = useAppStore.getState().engine.status;
-          const haveDevice = useAppStore.getState().engine.selectedDeviceId;
-          if (haveDevice && (status === 'stopped' || status === 'faulted')) {
+          } else {
+            // Re-assert the selection on the engine side. Snapshot
+            // returns the engine's own selected_device_id which can
+            // be null on cold start even if the store had a value
+            // from a previous session. Without this, engine_start
+            // returns InputNoDevice.
             try {
-              await engineStart();
+              await engineSelectInput(current);
             } catch (e) {
-              console.error('auto-start engine failed', e);
+              console.error('re-assert selected input failed', e);
             }
           }
         }
@@ -72,6 +81,11 @@ export function useEngineBridge() {
         switch (event.kind) {
           case 'engine.status':
             store.setEngineStatus(event.status);
+            // Engine reached a healthy running state — clear any stale
+            // start-error banner the user might still be seeing.
+            if (event.status === 'running') {
+              store.setLastStartError(null);
+            }
             break;
           case 'engine.meters':
             store.setMeters({
