@@ -9,7 +9,8 @@ import { SegmentedToggle } from '../../shared/SegmentedToggle';
 import { Toggle } from '../../shared/Toggle';
 import { EqCurve } from '../../shared/EqCurve';
 import { useAppStore } from '../../state/useAppStore';
-import { useProfileSync } from '../../state/useProfileSync';
+// useProfileSync is mounted in App.tsx so slider changes from any page
+// (Dashboard quick controls, Tune editors, the wizard) push to the engine.
 
 type ModuleId =
   | 'inputGain'
@@ -43,7 +44,6 @@ const CHAIN: ChainEntry[] = [
 type UpdateFn = <K extends keyof ProfileModules>(key: K, value: ProfileModules[K]) => void;
 
 export function Tune() {
-  useProfileSync();
   const { modules, update } = useAppStore((s) => ({
     modules: s.modules,
     update: s.updateModule,
