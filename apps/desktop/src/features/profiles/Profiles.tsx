@@ -1,7 +1,7 @@
 // Profiles — list + detail panel. From the Claude Design handoff.
 
 import { useState } from 'react';
-import { Plus, Star, MoreHorizontal } from 'lucide-react';
+import { Plus, Star, Save } from 'lucide-react';
 
 import {
   profileApply,
@@ -129,6 +129,26 @@ export function Profiles() {
     }
   };
 
+  // Save the dirty editor state into the currently-active user profile,
+  // overwriting it in place. Only enabled when the active profile is a
+  // user profile (built-ins are read-only).
+  const onSaveChanges = async () => {
+    const active = [...builtins, ...users].find((p) => p.id === activeProfileId);
+    if (!active || active.kind !== 'user') return;
+    const updated: Profile = { ...active, modules };
+    try {
+      const saved = await profileSave(updated);
+      await refresh();
+      setActiveProfile(saved);
+    } catch (e) {
+      console.error(e);
+      window.alert(`Couldn't save: ${e}`);
+    }
+  };
+
+  const activeProfile = [...builtins, ...users].find((p) => p.id === activeProfileId);
+  const canSaveInPlace = dirty && activeProfile && activeProfile.kind === 'user';
+
   return (
     <div className="ml-page" style={{ display: 'flex', flexDirection: 'column' }}>
       <div className="ml-page-head">
@@ -137,6 +157,11 @@ export function Profiles() {
           <div className="ml-page-sub">Saved tunes you can switch between instantly.</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          {canSaveInPlace && (
+            <button type="button" className="ml-btn primary" onClick={onSaveChanges}>
+              <Save size={12} /> Save changes
+            </button>
+          )}
           {dirty && (
             <button type="button" className="ml-btn" onClick={onSaveTweaks}>
               <Plus size={12} /> Save tweaks as new
@@ -227,14 +252,6 @@ export function Profiles() {
                     </div>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="ml-btn ghost"
-                  style={{ width: 28, height: 28, padding: 0, justifyContent: 'center' }}
-                  aria-label="More"
-                >
-                  <MoreHorizontal size={14} />
-                </button>
               </div>
 
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -293,27 +310,18 @@ export function Profiles() {
                 }}
               >
                 {selected.id === defaultProfileId ? (
-                  <a style={{ cursor: 'pointer' }} onClick={() => onSetDefault(null)}>
-                    Clear default
-                  </a>
+                  <LinkButton onClick={() => onSetDefault(null)}>Clear default</LinkButton>
                 ) : (
-                  <a style={{ cursor: 'pointer' }} onClick={() => onSetDefault(selected)}>
-                    Set as default
-                  </a>
+                  <LinkButton onClick={() => onSetDefault(selected)}>Set as default</LinkButton>
                 )}
                 {!isBuiltIn && (
                   <>
                     <span>·</span>
-                    <a style={{ cursor: 'pointer' }} onClick={() => onRename(selected)}>
-                      Rename
-                    </a>
+                    <LinkButton onClick={() => onRename(selected)}>Rename</LinkButton>
                     <span>·</span>
-                    <a
-                      style={{ cursor: 'pointer', color: 'var(--ml-bad)' }}
-                      onClick={() => onDelete(selected)}
-                    >
+                    <LinkButton onClick={() => onDelete(selected)} danger>
                       Delete
-                    </a>
+                    </LinkButton>
                   </>
                 )}
               </div>
@@ -472,5 +480,35 @@ function ChainSummary({ profile }: { profile: Profile }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function LinkButton({
+  onClick,
+  danger,
+  children,
+}: {
+  onClick: () => void;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        background: 'transparent',
+        border: 0,
+        padding: 0,
+        font: 'inherit',
+        fontSize: 11.5,
+        color: danger ? 'var(--ml-bad)' : 'var(--ml-accent)',
+        cursor: 'pointer',
+        textDecoration: 'underline',
+        textUnderlineOffset: 2,
+      }}
+    >
+      {children}
+    </button>
   );
 }

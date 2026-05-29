@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ChevronDown, Mic, RefreshCw, Star } from 'lucide-react';
 
 import { useAppStore } from '../state/useAppStore';
 import { engineSelectInput, engineListDevices } from '../ipc/commands';
+import { useClickOutside } from './useClickOutside';
 
 export function DeviceSelector() {
   const { devices, selectedDeviceId, setSelectedDeviceId, setDevices } = useAppStore((s) => ({
@@ -12,6 +13,8 @@ export function DeviceSelector() {
     setDevices: s.setDevices,
   }));
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useClickOutside(rootRef, () => setOpen(false), open);
 
   const selected =
     devices.find((d) => d.id === selectedDeviceId) ?? devices.find((d) => d.is_default_communications);
@@ -38,7 +41,7 @@ export function DeviceSelector() {
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
+    <div ref={rootRef} style={{ position: 'relative', width: '100%' }}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

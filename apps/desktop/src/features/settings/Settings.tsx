@@ -380,7 +380,7 @@ function HotkeysSection() {
   return (
     <Section
       title="Hotkeys"
-      desc="Reach the essentials without bringing MicLayer to the front."
+      desc="Click a binding, then press the key combination you want. Esc cancels, Backspace clears."
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
         {rows.map((r) => (
@@ -396,29 +396,25 @@ function HotkeysSection() {
           >
             <span style={{ fontSize: 12.5 }}>{r.label}</span>
             {editing === r.key ? (
-              <input
-                autoFocus
-                defaultValue={map[r.key] ?? ''}
-                onBlur={(e) => {
-                  const v = e.target.value.trim();
-                  update(r.key, v === '' ? null : v);
+              <HotkeyRecorder
+                onCapture={(accel) => {
+                  update(r.key, accel);
                   setEditing(null);
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                  if (e.key === 'Escape') setEditing(null);
+                onCancel={() => setEditing(null)}
+                onClear={() => {
+                  update(r.key, null);
+                  setEditing(null);
                 }}
-                className="ml-input"
-                style={{ width: 200 }}
               />
             ) : (
               <button
                 type="button"
                 onClick={() => setEditing(r.key)}
                 className="ml-kbd"
-                style={{ cursor: 'pointer', padding: '4px 10px' }}
+                style={{ cursor: 'pointer', padding: '4px 10px', minWidth: 160, textAlign: 'center' }}
               >
-                {map[r.key] ?? '(unset)'}
+                {map[r.key] ? formatAccelerator(map[r.key]!) : '(unset)'}
               </button>
             )}
           </div>
@@ -426,6 +422,134 @@ function HotkeysSection() {
       </div>
     </Section>
   );
+}
+
+const MODIFIER_CODES = [
+  'ControlLeft',
+  'ControlRight',
+  'ShiftLeft',
+  'ShiftRight',
+  'AltLeft',
+  'AltRight',
+  'MetaLeft',
+  'MetaRight',
+  'OSLeft',
+  'OSRight',
+];
+
+const NAMED_KEYS = new Set([
+  'BracketLeft',
+  'BracketRight',
+  'Comma',
+  'Period',
+  'Slash',
+  'Backslash',
+  'Semicolon',
+  'Quote',
+  'Backquote',
+  'Minus',
+  'Equal',
+  'Space',
+  'Tab',
+  'Enter',
+  'Escape',
+  'Backspace',
+  'Delete',
+  'Insert',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+]);
+
+function codeToTauriKey(code: string): string | null {
+  if (code.startsWith('Key')) return code.slice(3); // KeyM → M
+  if (code.startsWith('Digit')) return code.slice(5); // Digit1 → 1
+  if (/^F\d+$/.test(code)) return code;
+  if (NAMED_KEYS.has(code)) return code;
+  return null;
+}
+
+function HotkeyRecorder({
+  onCapture,
+  onCancel,
+  onClear,
+}: {
+  onCapture: (accel: string) => void;
+  onCancel: () => void;
+  onClear: () => void;
+}) {
+  const [partial, setPartial] = useState<string[]>([]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.code === 'Escape' && partial.length === 0) {
+        onCancel();
+        return;
+      }
+      if (e.code === 'Backspace' && partial.length === 0) {
+        onClear();
+        return;
+      }
+
+      const mods: string[] = [];
+      if (e.ctrlKey || e.metaKey) mods.push('CmdOrCtrl');
+      if (e.shiftKey) mods.push('Shift');
+      if (e.altKey) mods.push('Alt');
+
+      if (MODIFIER_CODES.includes(e.code)) {
+        setPartial(mods);
+        return;
+      }
+
+      const key = codeToTauriKey(e.code);
+      if (!key) {
+        setPartial(mods);
+        return;
+      }
+
+      if (mods.length === 0) {
+        // Reject unmodified hotkeys — too easy to conflict with normal typing.
+        setPartial([key]);
+        return;
+      }
+
+      onCapture([...mods, key].join('+'));
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [onCancel, onCapture, onClear, partial]);
+
+  return (
+    <span
+      className="ml-kbd"
+      style={{
+        padding: '4px 10px',
+        minWidth: 160,
+        textAlign: 'center',
+        background: 'var(--ml-accent-soft)',
+        color: 'var(--ml-accent)',
+        borderColor: 'color-mix(in oklch, var(--ml-accent) 35%, transparent)',
+      }}
+    >
+      {partial.length > 0 ? partial.join(' + ') : 'Press a key combination…'}
+    </span>
+  );
+}
+
+function formatAccelerator(accel: string): string {
+  // Display "CmdOrCtrl+Shift+M" → "Ctrl + Shift + M" for legibility.
+  return accel
+    .split('+')
+    .map((p) => (p === 'CmdOrCtrl' ? 'Ctrl' : p))
+    .join(' + ');
 }
 
 function DiagnosticsSection() {

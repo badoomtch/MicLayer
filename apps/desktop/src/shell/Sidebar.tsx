@@ -6,13 +6,14 @@ import {
   Sliders,
   FileText,
   Settings as SettingsIcon,
+  Mic,
+  MicOff,
   type LucideIcon,
 } from 'lucide-react';
 
 import { useAppStore, type SectionId } from '../state/useAppStore';
 import { engineSetMuted, engineSetRaw } from '../ipc/commands';
 import { SegmentedToggle } from '../shared/SegmentedToggle';
-import { Toggle } from '../shared/Toggle';
 
 const items: { id: SectionId; label: string; Icon: LucideIcon }[] = [
   { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
@@ -104,11 +105,30 @@ export function Sidebar() {
               {eng.label}
             </span>
           </div>
-          <Toggle
-            checked={!muted}
-            onChange={(v) => toggleMute(!v)}
-            aria-label="Mute toggle"
-          />
+          <button
+            type="button"
+            onClick={() => toggleMute(!muted)}
+            aria-label={muted ? 'Unmute' : 'Mute'}
+            title={muted ? 'Unmute (click to pass audio)' : 'Mute (silence the virtual mic)'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 8px',
+              border: '1px solid ' + (muted ? 'color-mix(in oklch, var(--ml-bad) 35%, transparent)' : 'var(--ml-border)'),
+              background: muted ? 'color-mix(in oklch, var(--ml-bad) 12%, transparent)' : 'transparent',
+              color: muted ? 'var(--ml-bad)' : 'var(--ml-fg-muted)',
+              borderRadius: 'var(--ml-r-pill)',
+              fontSize: 11.5,
+              fontWeight: 500,
+              cursor: 'pointer',
+              font: 'inherit',
+              transition: 'background var(--ml-dur-1), color var(--ml-dur-1), border-color var(--ml-dur-1)',
+            }}
+          >
+            {muted ? <MicOff size={12} /> : <Mic size={12} />}
+            {muted ? 'Muted' : 'Mute'}
+          </button>
         </div>
         <div
           style={{

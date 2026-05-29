@@ -1,10 +1,11 @@
 // Top-bar profile picker — a pill that opens a dropdown with all profiles.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ChevronDown, Star } from 'lucide-react';
 
 import { useAppStore } from '../state/useAppStore';
 import { profileApply } from '../ipc/profiles';
+import { useClickOutside } from './useClickOutside';
 
 export function ProfilePicker() {
   const { builtins, users, activeProfileId, dirty, setActiveProfile } = useAppStore((s) => ({
@@ -15,6 +16,8 @@ export function ProfilePicker() {
     setActiveProfile: s.setActiveProfile,
   }));
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useClickOutside(rootRef, () => setOpen(false), open);
   const active = [...builtins, ...users].find((p) => p.id === activeProfileId);
 
   const onPick = async (id: string) => {
@@ -36,7 +39,7 @@ export function ProfilePicker() {
   const allEmpty = builtins.length === 0 && users.length === 0;
 
   return (
-    <div className="ml-no-drag" style={{ position: 'relative' }}>
+    <div ref={rootRef} className="ml-no-drag" style={{ position: 'relative' }}>
       <button
         type="button"
         className="ml-pill"

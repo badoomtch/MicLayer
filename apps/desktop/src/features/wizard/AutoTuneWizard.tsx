@@ -57,7 +57,11 @@ export function AutoTuneWizard({ open, onClose }: Props) {
   const setActiveProfile = useAppStore((s) => s.setActiveProfile);
   const [step, setStep] = useState<Step>('intro');
   const [elapsedMs, setElapsedMs] = useState(0);
-  const [stats, setStats] = useState<Record<'silence' | 'normal' | 'loud', PhaseStats | null>>({
+  // statsRef is the source of truth so the chained phase callbacks
+  // (scheduled inside setInterval) always see the latest accumulated
+  // stats — React state would be stale because each phase's
+  // `finishPhase` is captured at the moment its `runPhase` was called.
+  const statsRef = useRef<Record<'silence' | 'normal' | 'loud', PhaseStats | null>>({
     silence: null,
     normal: null,
     loud: null,
@@ -70,7 +74,7 @@ export function AutoTuneWizard({ open, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
     setStep('intro');
-    setStats({ silence: null, normal: null, loud: null });
+    statsRef.current = { silence: null, normal: null, loud: null };
     setRecs(null);
     setError(null);
     setProfileName('Auto-tune');
@@ -117,15 +121,15 @@ export function AutoTuneWizard({ open, onClose }: Props) {
       } catch (err) {
         console.warn(err);
       }
-      const next = { ...stats, [def.id]: s };
-      setStats(next);
+      statsRef.current = { ...statsRef.current, [def.id]: s };
       if (def.id === 'silence') await runPhase(PHASES[1]!);
       else if (def.id === 'normal') await runPhase(PHASES[2]!);
       else {
         setStep('analyzing');
-        if (next.silence && next.normal && next.loud) {
+        const { silence, normal, loud } = statsRef.current;
+        if (silence && normal && loud) {
           try {
-            const result = await wizardSynthesize(next.silence, next.normal, next.loud);
+            const result = await wizardSynthesize(silence, normal, loud);
             setRecs(result.recommendations);
             useAppStore.getState().setModules(result.modules);
             setStep('review');
@@ -133,6 +137,11 @@ export function AutoTuneWizard({ open, onClose }: Props) {
             setError(String(err));
             setStep('intro');
           }
+        } else {
+          setError(
+            `Lost a phase result: silence=${!!silence}, normal=${!!normal}, loud=${!!loud}.`,
+          );
+          setStep('intro');
         }
       }
     } catch (e) {
