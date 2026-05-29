@@ -1,4 +1,6 @@
-// Top-bar profile picker — a pill that opens a dropdown with all profiles.
+// Profile picker — sidebar control. Shows the active profile name,
+// a dirty marker, and opens a dropdown listing all profiles. Styled
+// to match the sidebar (no floating pill on the title bar).
 
 import { useRef, useState } from 'react';
 import { ChevronDown, Star } from 'lucide-react';
@@ -39,26 +41,67 @@ export function ProfilePicker() {
   const allEmpty = builtins.length === 0 && users.length === 0;
 
   return (
-    <div ref={rootRef} className="ml-no-drag" style={{ position: 'relative' }}>
+    <div ref={rootRef} style={{ position: 'relative', width: '100%' }}>
       <button
         type="button"
-        className="ml-pill"
         onClick={() => setOpen((v) => !v)}
         disabled={allEmpty}
         style={{
-          background: 'var(--ml-surface-2)',
-          borderColor: 'var(--ml-border)',
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          background: open ? 'var(--ml-surface-hover)' : 'transparent',
+          border: 0,
+          borderRadius: 6,
+          padding: '8px 10px',
           color: 'var(--ml-fg)',
-          cursor: 'pointer',
-          padding: '4px 8px 4px 12px',
+          cursor: allEmpty ? 'not-allowed' : 'pointer',
+          font: 'inherit',
+          textAlign: 'left',
+          transition: 'background var(--ml-dur-1)',
         }}
+        title="Switch active profile"
       >
-        <span style={{ color: 'var(--ml-fg-muted)', fontWeight: 400, fontSize: 11.5 }}>Profile</span>
-        <span style={{ fontWeight: 500 }}>{active?.name ?? '—'}</span>
-        {dirty && (
-          <span style={{ fontSize: 10, color: 'var(--ml-warn)' }}>· edited</span>
-        )}
-        <ChevronDown size={12} style={{ opacity: 0.6 }} />
+        <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 10.5,
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              color: 'var(--ml-fg-faint)',
+              marginBottom: 2,
+            }}
+          >
+            Profile
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 13,
+              fontWeight: 500,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {active?.name ?? '—'}
+            </span>
+            {dirty && (
+              <span
+                style={{ fontSize: 10, color: 'var(--ml-warn)', flex: '0 0 auto' }}
+                title="Unsaved tweaks"
+              >
+                · edited
+              </span>
+            )}
+          </div>
+        </div>
+        <ChevronDown size={14} style={{ color: 'var(--ml-fg-muted)', flex: '0 0 14px' }} />
       </button>
 
       {open && (
@@ -67,14 +110,13 @@ export function ProfilePicker() {
           style={{
             position: 'absolute',
             top: 'calc(100% + 6px)',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            minWidth: 240,
-            maxHeight: 360,
-            overflowY: 'auto',
+            left: 0,
+            right: 0,
             zIndex: 30,
             boxShadow: 'var(--ml-shadow-2)',
             padding: 4,
+            maxHeight: 360,
+            overflowY: 'auto',
           }}
         >
           {builtins.length > 0 && (

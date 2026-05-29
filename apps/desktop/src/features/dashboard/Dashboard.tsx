@@ -3,48 +3,87 @@
 // → big meters card → quick controls.
 
 import { useEffect, useState } from 'react';
-import { Sparkles, AlertTriangle, ExternalLink, Download, Play, Square } from 'lucide-react';
+import { Sparkles, AlertTriangle, ExternalLink, Download, Save, Plus } from 'lucide-react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 import { useAppStore } from '../../state/useAppStore';
 import { LevelMeter } from '../../shared/LevelMeter';
 import { DeviceSelector } from '../../shared/DeviceSelector';
 import { Slider } from '../../shared/Slider';
-import { engineStart, engineStop } from '../../ipc/commands';
 import { engineSinkStatus, VB_CABLE_DOWNLOAD_URL, type SinkStatus } from '../../ipc/sink';
 import { vbcableInstall, onVbCableProgress, type InstallProgress } from '../../ipc/vbcable';
+import { profileSave, type Profile } from '../../ipc/profiles';
+import { useProfilesBridge } from '../../state/useProfilesBridge';
 import { RecordTestModal } from '../recorder/RecordTestModal';
 import { AutoTuneWizard } from '../wizard/AutoTuneWizard';
 
 export function Dashboard() {
-  const { engine, modules, updateModule } = useAppStore((s) => ({
+  const refreshProfiles = useProfilesBridge();
+  const {
+    engine,
+    modules,
+    updateModule,
+    builtins,
+    users,
+    activeProfileId,
+    dirty,
+    setActiveProfile,
+  } = useAppStore((s) => ({
     engine: s.engine,
     modules: s.modules,
     updateModule: s.updateModule,
+    builtins: s.profiles.builtins,
+    users: s.profiles.users,
+    activeProfileId: s.profiles.activeProfileId,
+    dirty: s.profiles.dirty,
+    setActiveProfile: s.setActiveProfile,
   }));
   const { meters } = engine;
   const [recorderOpen, setRecorderOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [sink, setSink] = useState<SinkStatus | null>(null);
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     engineSinkStatus().then(setSink).catch((e) => console.error('sink status', e));
   }, [engine.status]);
 
-  const onStartStop = async () => {
-    setBusy(true);
+  const running = engine.status === 'running' || engine.status === 'starting';
+
+  const activeProfile = [...builtins, ...users].find((p) => p.id === activeProfileId);
+  const canSaveInPlace = dirty && activeProfile && activeProfile.kind === 'user';
+
+  const onSaveChanges = async () => {
+    if (!activeProfile || activeProfile.kind !== 'user') return;
+    const updated: Profile = { ...activeProfile, modules };
     try {
-      if (engine.status === 'running' || engine.status === 'starting') await engineStop();
-      else await engineStart();
+      const saved = await profileSave(updated);
+      await refreshProfiles();
+      setActiveProfile(saved);
     } catch (e) {
       console.error(e);
-    } finally {
-      setBusy(false);
+      window.alert(`Couldn't save: ${e}`);
     }
   };
 
-  const running = engine.status === 'running' || engine.status === 'starting';
+  const onSaveAsNew = async () => {
+    const name = window.prompt('Name for the new profile?', 'My profile');
+    if (!name) return;
+    const profile: Profile = {
+      schemaVersion: 1,
+      id: crypto.randomUUID(),
+      name: name.trim(),
+      kind: 'user',
+      modules,
+    };
+    try {
+      const saved = await profileSave(profile);
+      await refreshProfiles();
+      setActiveProfile(saved);
+    } catch (e) {
+      console.error(e);
+      window.alert(`Couldn't save: ${e}`);
+    }
+  };
 
   return (
     <div className="ml-page">
@@ -54,11 +93,32 @@ export function Dashboard() {
           <div className="ml-page-sub">Your mic, processed locally, ready for any app.</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          {canSaveInPlace && (
+            <button
+              className="ml-btn primary"
+              type="button"
+              onClick={onSaveChanges}
+              title={`Overwrite "${activeProfile!.name}" with your current tweaks`}
+            >
+              <Save size={12} /> Save changes
+            </button>
+          )}
+          {dirty && (
+            <button
+              className="ml-btn"
+              type="button"
+              onClick={onSaveAsNew}
+              title="Save your current tweaks as a brand-new profile"
+            >
+              <Plus size={12} /> Save as new
+            </button>
+          )}
           <button
             className="ml-btn"
             type="button"
             disabled={!running}
             onClick={() => setRecorderOpen(true)}
+            title="Record a short clip and A/B raw vs tuned"
           >
             <span
               style={{
@@ -75,6 +135,7 @@ export function Dashboard() {
             type="button"
             disabled={!running}
             onClick={() => setWizardOpen(true)}
+            title="Analyse your room and voice, then build a custom profile"
           >
             <Sparkles size={12} />
             Auto-tune
@@ -122,16 +183,6 @@ export function Dashboard() {
                 {Number.isFinite(meters.noiseFloorDb) ? `${meters.noiseFloorDb.toFixed(1)} dB` : '—'}
               </span>
             </span>
-            <button
-              type="button"
-              className={'ml-btn' + (running ? '' : ' primary')}
-              disabled={busy || !engine.selectedDeviceId}
-              onClick={onStartStop}
-              style={{ padding: '6px 12px' }}
-            >
-              {running ? <Square size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
-              {running ? 'Stop engine' : 'Start engine'}
-            </button>
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -188,6 +239,7 @@ export function Dashboard() {
         >
           <Slider
             label="Clean up"
+            hint="How aggressively to remove background noise (fans, keyboard, room rumble). 0% turns the AI noise suppressor off; 100% is most aggressive but can sound artefacty on light voices."
             value={Math.round(modules.noiseSuppression.params.amount * 100)}
             min={0}
             max={100}
@@ -204,6 +256,7 @@ export function Dashboard() {
           />
           <Slider
             label="Loudness"
+            hint="How much to even out volume swings (compression ratio). 1:1 is off, 3:1 is a gentle natural sound, 6:1+ sounds tight and broadcast-style."
             value={modules.compressor.params.ratio}
             min={1}
             max={10}
@@ -218,6 +271,7 @@ export function Dashboard() {
           />
           <Slider
             label="Warmth"
+            hint="Low-shelf EQ around 200 Hz. Positive values add body and chestiness; negative values thin the voice and reduce rumble."
             value={modules.eq.params.bands[0]?.gainDb ?? 0}
             min={-12}
             max={12}
@@ -233,6 +287,7 @@ export function Dashboard() {
           />
           <Slider
             label="Sibilance"
+            hint="De-esser strength on harsh S, T and SH sounds. 0 dB is off, 3–5 dB is typical, higher values can make speech sound lispy."
             value={modules.deEsser.params.amountDb}
             min={0}
             max={12}
@@ -248,6 +303,7 @@ export function Dashboard() {
           />
           <Slider
             label="Clarity"
+            hint="Presence EQ around 3 kHz. Positive values bring the voice forward and add intelligibility; negative values push it back and reduce nasality."
             value={modules.eq.params.bands[2]?.gainDb ?? 0}
             min={-12}
             max={12}
@@ -263,6 +319,7 @@ export function Dashboard() {
           />
           <Slider
             label="Output"
+            hint="Final loudness trim before the virtual mic. Use this if other apps hear you too loud or too quiet. The safety limiter keeps you from clipping."
             value={modules.outputGain.params.gainDb}
             min={-12}
             max={12}

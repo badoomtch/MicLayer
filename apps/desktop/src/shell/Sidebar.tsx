@@ -14,6 +14,7 @@ import {
 import { useAppStore, type SectionId } from '../state/useAppStore';
 import { engineSetMuted, engineSetRaw } from '../ipc/commands';
 import { SegmentedToggle } from '../shared/SegmentedToggle';
+import { ProfilePicker } from '../shared/ProfilePicker';
 
 const items: { id: SectionId; label: string; Icon: LucideIcon }[] = [
   { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
@@ -64,6 +65,16 @@ export function Sidebar() {
 
   return (
     <nav className="ml-sidebar">
+      <div style={{ marginBottom: 10 }}>
+        <ProfilePicker />
+      </div>
+      <div
+        style={{
+          height: 1,
+          background: 'var(--ml-border)',
+          margin: '0 -10px 10px',
+        }}
+      />
       <div className="ml-nav">
         {items.map(({ id, label, Icon }) => (
           <button

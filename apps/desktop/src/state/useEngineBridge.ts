@@ -4,7 +4,12 @@
 import { useEffect } from 'react';
 
 import { onEngineEvent } from '../ipc/events';
-import { engineListDevices, engineSelectInput, engineSnapshot } from '../ipc/commands';
+import {
+  engineListDevices,
+  engineSelectInput,
+  engineSnapshot,
+  engineStart,
+} from '../ipc/commands';
 import { useAppStore } from './useAppStore';
 
 export function useEngineBridge() {
@@ -40,6 +45,21 @@ export function useEngineBridge() {
               } catch (e) {
                 console.error('auto-select default device failed', e);
               }
+            }
+          }
+
+          // Auto-start the engine when there's a selected device and nothing
+          // is already running. This removes the Start/Stop button from the
+          // UI — the app being open is the user's intent. They can pause
+          // audio with the mute button in the sidebar, and the engine
+          // shuts down naturally when the app actually quits.
+          const status = useAppStore.getState().engine.status;
+          const haveDevice = useAppStore.getState().engine.selectedDeviceId;
+          if (haveDevice && (status === 'stopped' || status === 'faulted')) {
+            try {
+              await engineStart();
+            } catch (e) {
+              console.error('auto-start engine failed', e);
             }
           }
         }

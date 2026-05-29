@@ -7,7 +7,6 @@ import { Minus, Square, X } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { Lockup } from '../shared/Logo';
-import { ProfilePicker } from '../shared/ProfilePicker';
 
 export function TitleBar() {
   const onMinimize = () => getCurrentWindow().minimize();
@@ -18,9 +17,7 @@ export function TitleBar() {
       <div className="ml-tb-left">
         <Lockup size={18} color="var(--ml-fg)" />
       </div>
-      <div className="ml-tb-mid ml-no-drag">
-        <ProfilePicker />
-      </div>
+      <div className="ml-tb-mid" />
       <div className="ml-tb-right">
         <button className="ml-tb-btn" aria-label="Minimise" onClick={onMinimize}>
           <Minus size={14} />

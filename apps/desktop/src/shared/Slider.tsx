@@ -1,6 +1,8 @@
 // Slider — uni and bipolar variants. Uses a native <input type="range">
 // overlaid invisibly on the visual track so keyboard + drag both work.
 
+import { Info } from 'lucide-react';
+
 interface SliderProps {
   label?: string;
   value: number;
@@ -15,6 +17,8 @@ interface SliderProps {
   /** Centred zero with fill growing outward (gains, dB). */
   bipolar?: boolean;
   disabled?: boolean;
+  /** Optional explainer shown via an (i) icon next to the label. */
+  hint?: string;
 }
 
 export function Slider({
@@ -29,6 +33,7 @@ export function Slider({
   onChange,
   bipolar = false,
   disabled,
+  hint,
 }: SliderProps) {
   const range = max - min;
   const valuePct = ((value - min) / range) * 100;
@@ -46,7 +51,28 @@ export function Slider({
 
   return (
     <div className={'ml-slider' + (disabled ? ' opacity-50' : '')}>
-      {label && <div className="ml-slider-label">{label}</div>}
+      {label && (
+        <div
+          className="ml-slider-label"
+          style={hint ? { display: 'inline-flex', alignItems: 'center', gap: 5 } : undefined}
+        >
+          <span>{label}</span>
+          {hint && (
+            <span
+              title={hint}
+              aria-label={hint}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                color: 'var(--ml-fg-faint)',
+                cursor: 'help',
+              }}
+            >
+              <Info size={11} />
+            </span>
+          )}
+        </div>
+      )}
       <div className="ml-slider-track-wrap">
         <div className="ml-slider-track" />
         <div

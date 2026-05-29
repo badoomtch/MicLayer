@@ -245,7 +245,6 @@ export function Profiles() {
                         fontSize: 12,
                         color: 'var(--ml-fg-muted)',
                         lineHeight: 1.55,
-                        maxWidth: '36ch',
                       }}
                     >
                       {selected.notes}
@@ -420,12 +419,16 @@ function ProfileRow({
         </div>
         {p.notes && (
           <div
+            title={p.notes}
             style={{
               fontSize: 11,
               color: 'var(--ml-fg-muted)',
-              whiteSpace: 'nowrap',
+              lineHeight: 1.4,
+              marginTop: 2,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
-              textOverflow: 'ellipsis',
             }}
           >
             {p.notes}
