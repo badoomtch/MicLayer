@@ -8,8 +8,38 @@ import {
   engineListDevices,
   engineSelectInput,
   engineSnapshot,
+  engineStart,
+  engineStop,
 } from '../ipc/commands';
 import { useAppStore } from './useAppStore';
+
+// Recovery debounce — if the watchdog fires repeatedly (capture stream
+// can't be opened, e.g. device permanently gone), don't thrash the
+// engine. One restart per N seconds; user retry takes over after that.
+const RECOVERY_COOLDOWN_MS = 4_000;
+let lastRecoveryAt = 0;
+let recoveryInflight = false;
+
+async function recoverEngine() {
+  const now = Date.now();
+  if (recoveryInflight) return;
+  if (now - lastRecoveryAt < RECOVERY_COOLDOWN_MS) return;
+  recoveryInflight = true;
+  lastRecoveryAt = now;
+  try {
+    await engineStop();
+    // Brief breath so WASAPI releases the device cleanly before reopen.
+    await new Promise((r) => setTimeout(r, 250));
+    await engineStart();
+    useAppStore.getState().setLastStartError(null);
+  } catch (e) {
+    const msg = typeof e === 'string' ? e : e instanceof Error ? e.message : String(e);
+    console.error('engine recovery failed', e);
+    useAppStore.getState().setLastStartError(msg);
+  } finally {
+    recoveryInflight = false;
+  }
+}
 
 export function useEngineBridge() {
   useEffect(() => {
@@ -113,6 +143,19 @@ export function useEngineBridge() {
             break;
           case 'engine.error':
             store.setLastErrorId(event.id);
+            // Auto-recover from input-side errors. The drain thread fires
+            // engine.input.stream_error when it stops seeing meter samples
+            // (Windows WASAPI session reset, USB hiccup, format change),
+            // and cpal also fires it on its own error callback. Without
+            // this, the engine sits in 'running' state forever while the
+            // bars stay flat and the user has to restart the app.
+            if (
+              event.id === 'engine.input.stream_error' ||
+              event.id === 'engine.input.device_missing' ||
+              event.id === 'engine.input.open_failed'
+            ) {
+              recoverEngine();
+            }
             break;
           case 'engine.device':
             engineListDevices()
